@@ -25,6 +25,12 @@
 
 -behaviour (gen_server).
 
+-ifdef(debug).
+-define(LOG(F,X), io:format(F, X)).
+-else.
+-define(LOG(F,X), true).
+-endif.
+
 %%====================================================================
 %% Include files
 %%====================================================================
@@ -144,8 +150,8 @@ add_rule (Name, Fun, ClauseID, Salience) ->
               {error, Msg} ->
                 io:format(">> Errore!!!~n~w:~s~n",[Fun, Msg]);
               {PConds, NConds} ->
-                %%io:format(">> PConds=~p~n",[PConds]),
-                %%io:format(">> NConds=~p~n",[NConds]),
+                ?LOG (">> PConds=~p~n",[PConds]),
+                ?LOG (">> NConds=~p~n",[NConds]),
                 gen_server:call (Name, {add_rule,
                                         {Fun, Salience},
                                         {PConds, NConds}})
@@ -610,6 +616,12 @@ build_string_condition ([{integer, _, Value} | Tail], Acc) ->
 build_string_condition ([{var, _, Value} | Tail], Acc) ->
   Term = lists:concat ([",", atom_to_list (Value)]),
   build_string_condition (Tail,
+                          [ Term | Acc]);
+build_string_condition ([{cons,_, {var, _, Value1}, {var, _, Value2}} | Tail],
+                        Acc) ->
+  Term = lists:flatten ([",[", atom_to_list (Value1), "|",
+                         atom_to_list (Value2), "]"]),
+  build_string_condition (Tail,
                           [ Term | Acc]).
 
 
@@ -908,6 +920,7 @@ is_present (Cond, [{C1, Tab, Alfa_fun} | Other_cond]) ->
 same_cond (Cond1, Cond1) ->
   true;
 same_cond (Cond1, Cond2) ->
+  ?LOG("Same Cond = ~p, ~p~n", [Cond1, Cond2]),
   C2 = parse_cond(Cond2),
   S1 = prepare_string(Cond1, C2),
   % io:format("S1=~s~n",[S1]),
@@ -926,7 +939,9 @@ same_cond (Cond1, Cond2) ->
 
 parse_cond (L) ->
   L1 = string:sub_string(L, 2, length(L)-1),
-  list_to_tuple(to_elem(L1)).
+  A = to_elem (L1),
+  ?LOG ("to_elem ~p --> ~p~n", [L1, A]),
+  list_to_tuple(A).
 
 
 to_elem ([]) ->
@@ -952,7 +967,15 @@ to_elem (L) ->
   Index1 = string:chr(L, $,),
   Index2 = string:chr(L, $}),
   Index3 = string:chr(L, $]),
-  to_elem(Index1, Index2, Index3, L).
+  Index4 = string:chr(L, $|),
+  if
+    (Index4 /= 0) and (Index3 /= 0) and (Index1 == 0) ->
+      ElemStr = string:sub_string(L, 1, Index3),
+      OtherStr = string:sub_string(L, Index3+1),
+      {list_to_atom (lists:concat (["[", ElemStr])), OtherStr};
+    true ->
+      to_elem(Index1, Index2, Index3, L)
+  end.
 to_elem(I1, I2, I3, L)
   when I2/=0, ((I2<I1) or (I1==0)), ((I2<I3) or (I3==0)) ->
   % l'elemento e' l'ultimo elemento di una tupla
@@ -1009,7 +1032,7 @@ get_atom (X) ->
 
 
 evaluate (String) ->
-  %%io:format ("FUN = ~p~n", [String]),
+  ?LOG ("FUN = ~p~n", [String]),
   {ok, Tokens, _} = erl_scan:string (String),
   {ok, Expr} = erl_parse:parse_exprs (Tokens),
   case catch (erl_eval:exprs (Expr, erl_eval:new_bindings ())) of

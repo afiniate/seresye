@@ -21,7 +21,7 @@
 %  along with this program.  If not, see <http://www.gnu.org/licenses/>
 %
 -module (sample).
--export ([rule/4, rule1/3, rule2/4, start/0, start1/0, start2/0]).
+-export ([rule/4, rule1/3, rule2/4, rule3/3, start/0, start1/0, start2/0]).
 
 -include("sample.hrl").
 
@@ -43,6 +43,10 @@ rule2 (Engine, {hello, world}, #sample_record { a = Z } = X, {mondo, Z}) ->
    io:format ("Hit 3! ~p\n", [X]),
    ok.
 
+rule3 (Engine, {hello, [H|T]}, {test, T}) ->
+  io:format ("Hit 3!\n"),
+  ok.
+
 start () ->
   eresye:start (myengine),
 %%   Z = fun (Engine, Fact) ->
@@ -56,6 +60,14 @@ start () ->
   eresye:assert (myengine, {hello, world}),
   eresye:assert (myengine, {ok, world}),
   eresye:assert (myengine, #sample_record { a = 10, b = 50}),
+
+  eresye:add_rule (myengine, {sample, rule3}),
+  eresye:assert (myengine, {hello, [ciao, mondo]}),
+  eresye:assert (myengine, {test, ciao}),
+  eresye:assert (myengine, {test, [ciao]}),
+  eresye:assert (myengine, {test, [mondo]}),
+  eresye:assert (myengine, {hello, [ciao, mondo, world]}),
+  eresye:assert (myengine, {test, [mondo, world]}),
   %%eresye:add_rule (myengine, {sample, rule}),
   %%eresye:add_rule (myengine, {sample, rule1}),
   ok.
