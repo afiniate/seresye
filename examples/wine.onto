@@ -1,0 +1,47 @@
+%
+%
+%
+% -------------------------------------------------------------------------
+%
+%  ERESYE, an ERlang Expert SYstem Engine
+%  Copyright (C) 2005-07 Francesca Gangemi (francesca@erlang-consulting.com)
+%  Copyright (C) 2005-07 Corrado Santoro (csanto@diit.unict.it)
+%
+%  This program is free software: you can redistribute it and/or modify
+%  it under the terms of the GNU General Public License as published by
+%  the Free Software Foundation, either version 3 of the License, or
+%  (at your option) any later version.
+%
+%  This program is distributed in the hope that it will be useful,
+%  but WITHOUT ANY WARRANTY; without even the implied warranty of
+%  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%  GNU General Public License for more details.
+%
+%  You should have received a copy of the GNU General Public License
+%  along with this program.  If not, see <http://www.gnu.org/licenses/>
+%
+class (wine_grape) ->
+  { name = [string, mandatory, nodefault] };
+
+class (wine) ->
+  { name = [string, mandatory, nodefault],
+    body = [string, mandatory, nodefault],
+    color = [string, mandatory, nodefault],
+    flavor = [string, mandatory, nodefault],
+    grape = [set_of (wine_grape), mandatory, nodefault],
+    sugar = [string, mandatory, nodefault]};
+
+class ('red-wine') ->
+  is_a (wine),
+  { color = [string, mandatory, default (red)] };
+
+class ('white-wine') ->
+  is_a (wine),
+  { color = [string, mandatory, default (white)] };
+
+class ('Chianti') ->
+  is_a ('redwine'),
+  { sugar = [string, mandatory, 'dry'] }.
+
+
+
