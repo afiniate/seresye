@@ -1,2 +1,2 @@
-THIS IS ERESYE RELEASE 1.2.4
+THIS IS ERESYE RELEASE 1.2.5
 ============================

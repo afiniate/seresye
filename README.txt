@@ -1,5 +1,5 @@
 
-This is ERESYE relase 1.2.4.
+This is ERESYE relase 1.2.5.
 ----------------------------
 
 Directories contain the following material:
