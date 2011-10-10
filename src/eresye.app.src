@@ -1,0 +1,10 @@
+%% -*- mode: Erlang; fill-column: 75; comment-column: 50; -*-
+
+{application, eresye,
+ [{description, "ERESYE means ERlang Expert SYstem Engine. It is a library "
+   "to write expert systems and rule processing engines using the Erlang "
+   "programming language"},
+  {vsn, "2.0.0"},
+  {modules, []},
+  {registered, []},
+  {applications, [kernel, stdlib]}]}.
