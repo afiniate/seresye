@@ -407,10 +407,8 @@ executor(EngineName) ->
             case catch execute_rule(EngineName, R) of
                 {'EXIT', {function_clause, [{Mod, Fun, _} | _]}} -> ok;
                 {'EXIT', Reason} ->
-                    io:format("** Warning! ERES engine ~p rule execution "
-                              "error\n** Rule is ~p~n** Reason for "
-                              "Error == ~n** ~p~n",
-                              [EngineName, R, Reason]);
+                    erlang:throw({eresye, {rule_execution,
+                                           [EngineName, R, Reason]}});
                 _ -> ok
             end,
             schedule(From),

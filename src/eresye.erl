@@ -78,8 +78,8 @@ add_rule(Name, Fun, ClauseID, Salience) ->
             lists:foreach(fun (X) ->
                                   case X of
                                       {error, Msg} ->
-                                          io:format(">> Errore!!!~n~w:~s~n",
-                                                    [Fun, Msg]);
+                                          erlang:throw({eresye, {error_adding_rule,
+                                                                 [Fun, Msg]}});
                                       {PConds, NConds} ->
                                           ?LOG(">> PConds=~p~n", [PConds]),
                                           ?LOG(">> NConds=~p~n", [NConds]),
@@ -279,16 +279,15 @@ get_conds({Module, Func}, Ontology, ClauseID) ->
     File = lists:concat([Module, '.erl']),
     case epp:parse_file(File, ["."], []) of
         {error, OpenError} ->
-            io:format(">> Errore!!!~n~w:~w~n",
-                      [{Module, Func}, OpenError]),
+            erlang:throw({eresye, {error_parsing_file,
+                                   [{Module, Func}, OpenError]}}),
             error;
         {ok, Form} ->
             Records = get_records(Form, []),
             case search_fun(Form, Func, Records) of
                 {error, Msg} ->
-                    io:format(">> Errore!!!~n~w:~s~n",
-                              [{Module, Func}, Msg]),
-                    error;
+                    erlang:throw({eresye, {error_parsing_file,
+                                           [{Module, Func}, Msg]}});
                 {ok, CL} ->
                     ClauseList = if ClauseID > 0 ->
                                          [lists:nth(ClauseID, CL)];
@@ -301,8 +300,9 @@ get_conds({Module, Func}, Ontology, ClauseID) ->
                                     end,
                     case read_clause(SolvedClauses, [], Records) of
                         {error, Msg2} ->
-                            io:format(">> Errore!!!~n~w:~s~n",
-                                      [{Module, Func}, Msg2]),
+                            erlang:throw({eresye, {error_parsing_file,
+                                                   clause_issues,
+                                                   [{Module, Func}, Msg2]}}),
                             error;
                         CondsList -> CondsList
                     end
@@ -335,7 +335,7 @@ get_record_fields([{record_field, _,
     get_record_fields(Tail, NewAcc).
 
 search_fun([], _, _RecordList) ->
-    {error, "Funzione non trovata"};
+    {error, "function not found"};
 search_fun([{function, _, _Func, _, ClauseList} | _Other],
            _Func, _RecordList) ->
     {ok, ClauseList};
@@ -360,10 +360,10 @@ read_guard(_Guard) -> [].
 get_neg_cond({nil, _}, Nc) -> Nc;
 get_neg_cond({cons, _, {string, _, C}, OtherC}, Nc) ->
     Nc1 = [C | Nc], get_neg_cond(OtherC, Nc1);
-get_neg_cond(_X, _Nc) ->
-    io:format(">> Negated Conditions must be a list "
-              "of String~n"),
-    [].
+get_neg_cond(X, Nc) ->
+    erlang:throw({eresye, {invalid_condition, {X, Nc},
+                           ">> Negated Conditions must be a list "
+                           "of String~n"}}).
 
 read_parameters([{var, _, _} | Tail], RecordList) ->
     P = extract_parameters(Tail, [], RecordList),
@@ -758,7 +758,7 @@ get_atom(X)
         39 ->
             Sub = string:sub_string(X, 2, L - 1), list_to_atom(Sub);
         _Other ->
-            io:format(">> Errore (manca l'apice):~s~n", [X])
+            erlang:throw({eresye, {missing, element, X}})
     end;
 get_atom(X) -> X1 = string:strip(X), list_to_atom(X1).
 
