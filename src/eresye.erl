@@ -1,50 +1,19 @@
-%
-% eresye.erl
-%
-% ----------------------------------------------------------------------
-%%
-%%  ERESYE, an ERlang Expert SYstem Engine
-%%
-%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
-%% All rights reserved.
-%%
-%% Redistribution and use in source and binary forms, with or without
-%% modification, are permitted provided that the following conditions are met:
-%%     * Redistributions of source code must retain the above copyright
-%%       notice, this list of conditions and the following disclaimer.
-%%     * Redistributions in binary form must reproduce the above copyright
-%%       notice, this list of conditions and the following disclaimer in the
-%%       documentation and/or other materials provided with the distribution.
-%%     * Neither the name of Francesca Gangemi, Corrado Santoro may be used
-%%       to endorse or promote products derived from this software without
-%%       specific prior written permission.
-%%
-%%
-%% THIS SOFTWARE IS PROVIDED BY Francesca Gangemi AND Corrado Santoro ``AS
-%% IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-%% THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-%% PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL <copyright holder> BE LIABLE FOR
-%% ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-%% DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-%% SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-%% CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-%% LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-%% OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-%% SUCH DAMAGE.
-%
-%
+%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%
+%%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
+%%% All rights reserved.
+%%%
+%%% You may use this file under the terms of the BSD License. See the
+%%% license distributed with this project or
+%%% http://www.opensource.org/licenses/bsd-license.php
 -module(eresye).
 
 -behaviour(gen_server).
 
 -ifdef(debug).
-
 -define(LOG(F, X), io:format(F, X)).
-
 -else.
-
 -define(LOG(F, X), true).
-
 -endif.
 
 %%====================================================================
@@ -70,64 +39,32 @@
 %%====================================================================
 %% External functions
 %%====================================================================
-%%====================================================================
-%% Func: start/1
-%% Arguments: Engine Name
-%%====================================================================
 start(EngineName) ->
     gen_server:start({local, EngineName}, ?MODULE,
                      [EngineName, nil], []).
 
-%%====================================================================
-%% Func: start/2
-%% Arguments: Engine Name, Ontology
-%%====================================================================
 start(EngineName, Ontology) ->
     gen_server:start({local, EngineName}, ?MODULE,
                      [EngineName, Ontology], []).
 
-%%====================================================================
-%% Func: start_link/1
-%% Arguments: Engine Name
-%%====================================================================
 start_link(EngineName) ->
     gen_server:start_link({local, EngineName}, ?MODULE,
                           [EngineName, nil], []).
 
-%%====================================================================
-%% Func: stop/1
-%% Arguments: Engine Name
-%%====================================================================
 stop(EngineName) -> gen_server:call(EngineName, {stop}).
 
-%%====================================================================
-%% Func: assert/2
-%% Arguments: EngineName, FactToAssert or FactList
-%%====================================================================
 assert(EngineName, Fact) when is_list(Fact) ->
     [assert(EngineName, F) || F <- Fact], ok;
 assert(EngineName, Fact) when is_tuple(Fact) ->
     gen_server:call(EngineName, {assert, Fact}).
 
-%%====================================================================
-%% Func: retract/2
-%% Arguments: EngineName, FactToRetract or FactList
-%%====================================================================
 retract(EngineName, Fact) when is_list(Fact) ->
     [retract(EngineName, F) || F <- Fact];
 retract(EngineName, Fact) when is_tuple(Fact) ->
     gen_server:call(EngineName, {retract, Fact}).
 
-%%====================================================================
-%% Func: add_rule/2
-%% Arguments: EngineName, Rule
-%%====================================================================
 add_rule(Name, Fun) -> add_rule(Name, Fun, 0).
 
-%%====================================================================
-%% Func: add_rule/3
-%% Arguments: EngineName, Rule, Salience
-%%====================================================================
 add_rule(Name, {Module, Fun, ClauseID}, Salience) ->
     add_rule(Name, {Module, Fun}, ClauseID, Salience);
 add_rule(Name, {Module, Fun}, Salience) ->
@@ -136,56 +73,43 @@ add_rule(Name, {Module, Fun}, Salience) ->
 add_rule(Name, Fun, ClauseID, Salience) ->
     Ontology = get_ontology(Name),
     case get_conds(Fun, Ontology, ClauseID) of
-      error -> error;
-      CondsList ->
-          lists:foreach(fun (X) ->
-                                case X of
-                                  {error, Msg} ->
-                                      io:format(">> Errore!!!~n~w:~s~n",
-                                                [Fun, Msg]);
-                                  {PConds, NConds} ->
-                                      ?LOG(">> PConds=~p~n", [PConds]),
-                                      ?LOG(">> NConds=~p~n", [NConds]),
-                                      gen_server:call(Name,
-                                                      {add_rule,
-                                                       {Fun, Salience},
-                                                       {PConds, NConds}})
-                                end
-                        end,
-                        CondsList),
-          ok
+        error -> error;
+        CondsList ->
+            lists:foreach(fun (X) ->
+                                  case X of
+                                      {error, Msg} ->
+                                          io:format(">> Errore!!!~n~w:~s~n",
+                                                    [Fun, Msg]);
+                                      {PConds, NConds} ->
+                                          ?LOG(">> PConds=~p~n", [PConds]),
+                                          ?LOG(">> NConds=~p~n", [NConds]),
+                                          gen_server:call(Name,
+                                                          {add_rule,
+                                                           {Fun, Salience},
+                                                           {PConds, NConds}})
+                                  end
+                          end,
+                          CondsList),
+            ok
     end.
 
-%%====================================================================
-%% Func: remove_rule/2
-%% Arguments: EngineName, Rule
-%%====================================================================
 remove_rule(Name, Rule) ->
     gen_server:call(Name, {remove_rule, Rule}).
 
-%%====================================================================
-%% Func: wait/2
-%% Arguments: EngineName, PatternToMatch
-%%====================================================================
 wait(Name, Pattern) ->
     wait_retract(Name, Pattern, false).
 
-%%====================================================================
-%% Func: wait_and_retract/2
-%% Arguments: EngineName, PatternToMatch
-%%====================================================================
 wait_and_retract(Name, Pattern) ->
     wait_retract(Name, Pattern, true).
 
 wait_retract(Name, Pattern, NeedRetract)
-    when is_tuple(Pattern) ->
+  when is_tuple(Pattern) ->
     PList = tuple_to_list(Pattern),
     SList = [term_to_list(X) || X <- PList],
     FunList = [if is_function(X) -> X;
                   true -> fun (_) -> true end
                end
                || X <- PList],
-    %%io:format ("SList = ~p~n", [SList]),
     [_ | DList] = lists:foldl(fun (X, Sum) ->
                                       lists:concat([Sum, ",", X])
                               end,
@@ -197,7 +121,7 @@ wait_retract(Name, Pattern, NeedRetract)
     FinalPattern = [ClientCondition,
                     lists:concat(["{", DList, "}"])],
     RetractString = if NeedRetract ->
-                           "eresye:retract (Engine, Pattern__),";
+                            "eresye:retract (Engine, Pattern__),";
                        true -> ""
                     end,
     SFun =
@@ -210,18 +134,11 @@ wait_retract(Name, Pattern, NeedRetract)
                                     "(Engine, X), ~s Pid ! Pattern__;    "
                                     "true -> nil end end.",
                                     [PidHash, RetractString])),
-    %%io:format ("Fun = ~p~n", [SFun]),
-    %%io:format ("Pattern = ~p~n", [FinalPattern]),
     Fun = evaluate(SFun),
     gen_server:call(Name,
                     {add_rule, {Fun, 0}, {FinalPattern, []}}),
-    %%io:format ("Rete is ~p~n", [eresye:get_rete (Name)]),
     eresye:assert(Name, {client, PidHash, self(), FunList}),
-    receive Pat -> Pat end,
-    %%   if
-    %%     NeedRetract -> eresye:retract (Name, Pat);
-    %%     true -> ok
-    %%   end,
+    Pat = receive Pat0 -> Pat0 end,
     gen_server:call(Name, {remove_rule, Fun}),
     Pat.
 
@@ -231,37 +148,17 @@ term_to_list(X) when is_atom(X) -> atom_to_list(X);
 term_to_list(X) when is_function(X) -> "_";
 term_to_list(X) -> X.
 
-%%====================================================================
-%% Func: get_ontology/1
-%% Arguments: EngineName
-%%====================================================================
 get_ontology(Name) ->
     gen_server:call(Name, {get_ontology}).
 
-%%====================================================================
-%% Func: get_rete/1
-%% Arguments: EngineName
-%%====================================================================
 get_rete(Name) -> gen_server:call(Name, {get_rete}).
 
-%%====================================================================
-%% Func: get_rules_fired/1
-%% Arguments: EngineName
-%%====================================================================
 get_rules_fired(Name) ->
     gen_server:call(Name, {get_rules_fired}).
 
-%%====================================================================
-%% Func: get_kb/1
-%% Arguments: EngineName
-%%====================================================================
 get_kb(Name) ->
     [KB | _] = gen_server:call(Name, {get_rete}), KB.
 
-%%====================================================================
-%% Func: query_kb/2
-%% Arguments: EngineName, Pattern
-%%====================================================================
 query_kb(Name, Pattern) when is_tuple(Pattern) ->
     PList = tuple_to_list(Pattern),
     PatternSize = length(PList),
@@ -289,18 +186,12 @@ query_kb_1(X, PatternSize) -> size(X) == PatternSize.
 %%====================================================================
 %% Callback functions
 %%====================================================================
-%%====================================================================
-%% Func: init/1
-%%====================================================================
 init([EngineName, Ontology]) ->
     %% EngineState = [Kb, Alfa, Join, Agenda, State]
     EngineState = [[], [], eresye_tree_list:new(),
                    eresye_agenda:start(EngineName), Ontology],
     {ok, EngineState}.
 
-%%====================================================================
-%% Func: handle_call/3
-%%====================================================================
 handle_cast(_, State) -> {noreply, State}.
 
 handle_info(_, State) -> {noreply, State}.
@@ -316,7 +207,6 @@ handle_call({retract, Fact}, _, State) ->
 handle_call({add_rule, {Fun, Salience},
              {PConds, NConds}},
             _, State) ->
-    %%io:format ("Addrule ~p: ~p~n", [Fun, {PConds, NConds}]),
     Rule = {Fun, Salience},
     [_, _, Join | _] = State,
     Root = eresye_tree_list:get_root(Join),
@@ -360,82 +250,63 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 terminate(_Reason, EngineState) ->
     [_, _, _, AgendaPid, _] = EngineState,
     gen_server:call(AgendaPid, {stop}),
-    %%io:format ("Terminating...~p~n", [self ()]),
     ok.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
 
-% inizializza la nuova alfa-memory con i fatti presenti
-% nella Knowledge Base che soddisfano la condizione Cond
+%% @doc initializes the memory with a new alpha-present the facts
+%% In the Knowledge Base that satisfy the condition Cond
 initialize_alfa(_, _, []) -> nil;
 initialize_alfa(Cond, Tab, [Fact | Other_fact]) ->
-    %%io:format ("ALPHA ~p,~p~n", [Cond, Fact]),
     Fun = prepare_match_alpha_fun(Cond),
-    %%io:format ("Fun ~p~n", [Fun]),
     case Fun(Fact) of
-      Fact ->
-          ets:insert(Tab, Fact),
-          initialize_alfa(Cond, Tab, Other_fact);
-      false -> initialize_alfa(Cond, Tab, Other_fact)
+        Fact ->
+            ets:insert(Tab, Fact),
+            initialize_alfa(Cond, Tab, Other_fact);
+        false -> initialize_alfa(Cond, Tab, Other_fact)
     end.
-
-%% initialize_alfa (Cond, Tab, [Fact | Other_fact]) ->
-%%   io:format ("ALPHA ~p,~p~n", [Cond, Fact]),
-%%   Str = prepare_string (Cond, Fact),
-%%   io:format ("STR ~p~n", [Str]),
-%%   case evaluate (Str) of
-%%     Fact ->
-%%       ets:insert (Tab, Fact),
-%%       initialize_alfa (Cond, Tab, Other_fact);
-%%     false ->
-%%       initialize_alfa (Cond, Tab, Other_fact)
-%%   end.
 
 prepare_match_alpha_fun(Cond) ->
     FunString =
         lists:flatten(io_lib:format("fun (~s = X__x__X) -> X__x__X;    (_) "
                                     " -> false end.",
                                     [Cond])),
-    %%io:format ("Fun String ~p~n", [FunString]),
     evaluate(FunString).
 
 get_conds({Module, Func}, Ontology, ClauseID) ->
     File = lists:concat([Module, '.erl']),
     case epp:parse_file(File, ["."], []) of
-      {error, OpenError} ->
-          io:format(">> Errore!!!~n~w:~w~n",
-                    [{Module, Func}, OpenError]),
-          error;
-      {ok, Form} ->
-          Records = get_records(Form, []),
-          %%io:format (">> Records ~p~n", [Records]),
-          case search_fun(Form, Func, Records) of
-            {error, Msg} ->
-                io:format(">> Errore!!!~n~w:~s~n",
-                          [{Module, Func}, Msg]),
-                error;
-            {ok, CL} ->
-                ClauseList = if ClauseID > 0 ->
-                                    [lists:nth(ClauseID, CL)];
-                                true -> CL
-                             end,
-                %%io:format ("Clauses ~p~n", [ClauseList]),
-                SolvedClauses = if Ontology == nil -> ClauseList;
-                                   true ->
-                                       eresye_ontology_resolver:resolve_ontology(ClauseList,
-                                                                                 Ontology)
-                                end,
-                %%io:format (">>> ~p~n", [SolvedClauses]),
-                case read_clause(SolvedClauses, [], Records) of
-                  {error, Msg2} ->
-                      io:format(">> Errore!!!~n~w:~s~n",
-                                [{Module, Func}, Msg2]),
-                      error;
-                  CondsList -> CondsList
-                end
-          end
+        {error, OpenError} ->
+            io:format(">> Errore!!!~n~w:~w~n",
+                      [{Module, Func}, OpenError]),
+            error;
+        {ok, Form} ->
+            Records = get_records(Form, []),
+            case search_fun(Form, Func, Records) of
+                {error, Msg} ->
+                    io:format(">> Errore!!!~n~w:~s~n",
+                              [{Module, Func}, Msg]),
+                    error;
+                {ok, CL} ->
+                    ClauseList = if ClauseID > 0 ->
+                                         [lists:nth(ClauseID, CL)];
+                                    true -> CL
+                                 end,
+                    SolvedClauses = if Ontology == nil -> ClauseList;
+                                       true ->
+                                            eresye_ontology_resolver:resolve_ontology(ClauseList,
+                                                                                      Ontology)
+                                    end,
+                    case read_clause(SolvedClauses, [], Records) of
+                        {error, Msg2} ->
+                            io:format(">> Errore!!!~n~w:~s~n",
+                                      [{Module, Func}, Msg2]),
+                            error;
+                        CondsList -> CondsList
+                    end
+            end
     end.
 
 get_records([], Acc) -> lists:reverse(Acc);
@@ -475,9 +346,7 @@ read_clause([], CondsList, _RecordList) -> CondsList;
 read_clause([Clause | OtherClause], CondsList,
             RecordList) ->
     {clause, _, ParamList, GuardList, _} = Clause,
-    %%PosConds = read_param (ParamList),
     PosConds = read_parameters(ParamList, RecordList),
-    %%io:format (">>> Positive conditions : ~p~n", [PosConds]),
     NegConds = read_guard(GuardList),
     CondsList1 = CondsList ++ [{PosConds, NegConds}],
     read_clause(OtherClause, CondsList1, RecordList).
@@ -498,7 +367,6 @@ get_neg_cond(_X, _Nc) ->
 
 read_parameters([{var, _, _} | Tail], RecordList) ->
     P = extract_parameters(Tail, [], RecordList),
-    %%io:format ("read_parameters = ~p~n", [P]),
     Conditions = [build_string_condition(X, []) || X <- P],
     Conditions.
 
@@ -527,17 +395,13 @@ extract_parameters([{match, _, {var, _, _},
 extract_parameters([{record, _, RecordName, Condition}
                     | Tail],
                    Acc, RecordList) ->
-    %%io:format ("Record: ~p~nCondition: ~p~n", [RecordName, Condition]),
     RecordDefinition = get_record_def(RecordName,
                                       RecordList),
-    %%io:format ("Record Definition: ~p~n", [RecordDefinition]),
     RecordDefaults = make_record_default(RecordDefinition,
                                          []),
-    %%io:format ("Record Defaults: ~p~n", [RecordDefaults]),
     Pattern = [{atom, 0, RecordName}
                | make_record_pattern(Condition, RecordDefaults,
                                      RecordDefinition)],
-    %%io:format ("Record Pattern: ~p~n", [Pattern]),
     extract_parameters(Tail, [Pattern | Acc], RecordList);
 extract_parameters([{tuple, _, Condition} | Tail], Acc,
                    RecordList) ->
@@ -564,10 +428,10 @@ make_record_pattern([{record_field, _,
     FieldPosition = get_record_field_pos(FieldName,
                                          RecordDefinition, 1),
     NewPattern = lists:sublist(Pattern, FieldPosition - 1)
-                   ++
-                   [MatchValue] ++
-                     lists:sublist(Pattern, FieldPosition + 1,
-                                   length(Pattern) - FieldPosition),
+        ++
+        [MatchValue] ++
+        lists:sublist(Pattern, FieldPosition + 1,
+                      length(Pattern) - FieldPosition),
     make_record_pattern(Tail, NewPattern, RecordDefinition).
 
 get_record_field_pos(Name, [], _) ->
@@ -601,103 +465,18 @@ build_string_condition([{cons, _, {var, _, Value1},
                           atom_to_list(Value2), "]"]),
     build_string_condition(Tail, [Term | Acc]).
 
-%% read_param ([{var, _, EngineName} | {nil,_}]) -> % Non ci sono condizioni
-%%   [];
-%% read_param ([{var, _, EngineName}, {cons, _, {tuple, _, ListVar}, Tail}]) ->
-%%   % Le condizioni sono espresse in una lista di tuple
-%%   OtherCond = toString([Tail], {tail, newCond}),
-%%   C1 = lists:concat(['{', toString(ListVar, inside),'}']),
-%%   case OtherCond of
-%%     [] ->
-%%       [C1];
-%%     OtherCond ->
-%%       lists:append([C1], OtherCond)
-%%   end;
-%% read_param ([Param|OtherParam]) ->
-%%   {error, "I parametri della regola devono essere una variabile e una lista di tuple (EngineName, [{Cond1},...])"}.
-
-%% toString ([], Mode) -> [];
-%% toString ([{nil,_} | Other], {tail, Mode}) -> toString(Other, Mode);
-%% toString ([{nil,_} | Other], Mode) -> toString(Other, Mode);
-%% toString ([{var,_, NameVar} | Other], Mode) ->
-%%   Str =  toString(Other, Mode),
-%%   case Str of
-%%     [] ->
-%%       NameVar;
-%%     Str ->
-%%       lists:concat([NameVar, ',', Str])
-%%   end;
-%% toString ([{atom, _, Atom} | Other], Mode  ) ->
-%%   Str = toString(Other, Mode),
-%%   case Str of
-%%     [] ->
-%%       lists:concat(['\'', Atom, '\'']);
-%%     Str ->
-%%       lists:concat(['\'', Atom, '\'', ',', Str])
-%%   end;
-%% toString ([{tuple,_, ListVar} | Other], inside) ->
-%%   % la tupla e' un elemento di una condizione (inside)
-%%   Str = toString(Other, inside),
-%%   case Str of
-%%     [] ->
-%%       lists:concat(['{', toString(ListVar, inside), '}']);
-%%     Str ->
-%%       lists:concat(['{', toString(ListVar, inside), '}',',', Str])
-%%   end;
-%% toString ([{tuple,_, ListVar} | Other], newCond) ->
-%%   % la tupla e' una nuova condizione (newCond)
-%%   Str = toString(Other, newCond),
-%%   Cond =  lists:concat(['{', toString(ListVar, inside), '}']),
-%%   case Str of
-%%     [] ->
-%%       [Cond];
-%%     Str ->
-%%       lists:append([Cond], Str)
-%%   end;
-%% toString ([{cons, _, Head, Tail} | Other], {tail, Mode}) ->
-%%   Str =  toString([Tail], {tail, Mode}),
-%%   case Str of
-%%     [] ->
-%%       S =  toString([Head], Mode);
-%%     Str ->
-%%       S = lists:concat([toString([Head], Mode), Str])
-%%   end,
-%%   Str1 = toString(Other, Mode),
-%%   case Str1 of
-%%     [] ->
-%%       S;
-%%     Str1 ->
-%%       lists:concat([S, ',', Str1])
-%%   end;
-%% toString ([{cons, _, Head, Tail} | Other], Mode) ->
-%%   Str =  toString([Tail], {tail, Mode}),
-%%   case Str of
-%%     [] ->
-%%       S = lists:concat(['[', toString([Head], Mode), ']']);
-%%     Str ->
-%%       S = lists:concat(['[', toString([Head], Mode),',', Str,']'])
-%%   end,
-%%   Str1 = toString(Other, Mode),
-%%   case Str1 of
-%%     [] ->
-%%       S;
-%%     Str1 ->
-%%       lists:concat([S, ',', Str1])
-%%   end.
-
-% P e' una lista contenente le condizioni precedenti a Cond
-% della stessa produzione
+%% @doc P and a list containing the conditions prior to Cond Of the
+%% same production
 make_struct(R, _Rule, [], _P, Cur_node, ng) ->
     [Kb, Alfa, Join, Agenda, State] = R,
-    %crea production node
+    %% create production node
     Key = {np_node, nil},
     {Node, {Join2, Agenda1}} =
         case eresye_tree_list:child(Key, Cur_node, Join) of
             false ->
                 Value = [],
                 {Node0, Join1} = eresye_tree_list:insert(Key, Value,
-                                                        Cur_node, Join),
-                                                % io:format("Np_node=~w~n",[Node]),
+                                                         Cur_node, Join),
                 {Node0, update_new_node(Node0, Cur_node,
                                         Join1, Agenda)};
             Node0 -> {Node0, {Join, Agenda}}
@@ -705,7 +484,7 @@ make_struct(R, _Rule, [], _P, Cur_node, ng) ->
     {[Kb, Alfa, Join2, Agenda1, State], Node};
 make_struct(R, Rule, [], _P, Cur_node, nil) ->
     [Kb, Alfa, Join, Agenda, State] = R,
-    %crea production node
+    %% create production node
     Key = {p_node, Rule},
     {Join2, Agenda1} = case eresye_tree_list:child(Key, Cur_node, Join) of
                            false ->
@@ -733,7 +512,6 @@ make_struct(R, Rule, [], P, Cur_node, {Nod, NConds}) ->
     Nod1 = eresye_tree_list:refresh(Nod, Join1),
     Join2 = eresye_tree_list:set_child(Cur_node1, Nod1,
                                        Join1),
-    %crea production node
     Key = {p_node, Rule},
     {Join4, Agenda2} =
         case eresye_tree_list:child(Key, Cur_node1, Join2) of
@@ -741,7 +519,6 @@ make_struct(R, Rule, [], P, Cur_node, {Nod, NConds}) ->
                 Value = [],
                 {Node, Join3} = eresye_tree_list:insert(Key, Value,
                                                         Cur_node1, Join2),
-                                                % io:format("P_node=~w~n",[Node]),
                 Cur_node2 = eresye_tree_list:refresh(Cur_node1, Join3),
                 update_new_node(Node, Cur_node2,
                                 Join3, Agenda1);
@@ -753,7 +530,7 @@ make_struct(R, Rule, [], P, Cur_node, {Nod, NConds}) ->
                 io:format(">> with salience = ~w~n", [Sal]),
                 io:format(">> To change salience use 'set_salience()'.~n"),
                 {Join2, Agenda1}
-    end,
+        end,
     [Kb, Alfa, Join4, Agenda2, State];
 make_struct(R, Rule, [Cond | T], P, Cur_node, Nod) ->
     [Kb, _Alfa, Join, Agenda, State] = R,
@@ -767,23 +544,21 @@ make_struct(R, Rule, [Cond | T], P, Cur_node, Nod) ->
 add_alfa(R, Cond) ->
     [Kb, Alfa, _Join, _, _] = R,
     case is_present(Cond, Alfa) of
-      false ->
-          Tab = ets:new(alfa, [bag]),
-          %%io:format ("Cond ~p~n", [Cond]),
-          Fun = lists:concat(["F=fun(", Cond, ")->true end."]),
-          Alfa_fun = evaluate(Fun),
-          Alfa1 = [{Cond, Tab, Alfa_fun} | Alfa],
-          initialize_alfa(Cond, Tab, Kb),
-          {Alfa1, {new, Tab}};
-      {true, Tab} -> {Alfa, {old, Tab}}
+        false ->
+            Tab = ets:new(alfa, [bag]),
+            Fun = lists:concat(["F=fun(", Cond, ")->true end."]),
+            Alfa_fun = evaluate(Fun),
+            Alfa1 = [{Cond, Tab, Alfa_fun} | Alfa],
+            initialize_alfa(Cond, Tab, Kb),
+            {Alfa1, {new, Tab}};
+        {true, Tab} -> {Alfa, {old, Tab}}
     end.
 
-% prepara una stringa del tipo Cond=Fact
-% (es. "{X, on, Y}={b1, on, b3}." )
+%% @doc prepare a string representing Cond=Fact
+%% (es. "{X, on, Y}={b1, on, b3}." )
 prepare_string(Cond, Fact) ->
     Fact1 = tuple_to_list(Fact),
     Str = lists:concat([Cond, "={"]),
-    %%io:format ("F1 = ~p~n", [Fact1]),
     Str1 = append_fact([], Fact1, siend),
     string:concat(Str, Str1).
 
@@ -796,27 +571,27 @@ append_fact(H, [Elem], _Flag) when is_tuple(Elem) ->
                   append_fact([], Elem1, noend), "}}."]);
 append_fact(H, [Elem], Flag) when is_integer(Elem) ->
     case Flag of
-      noend -> lists:concat([H, Elem]);
+        noend -> lists:concat([H, Elem]);
         _Other -> lists:concat([H, Elem, "}."])
     end;
 append_fact(H, [Elem], Flag) ->
     case Flag of
-      noend -> lists:concat([H, "'", Elem, "'"]);
-      _Other -> lists:concat([H, "'", Elem, "'}."])
+        noend -> lists:concat([H, "'", Elem, "'"]);
+        _Other -> lists:concat([H, "'", Elem, "'}."])
     end;
 append_fact(H, [Elem | Other_elem], Flag)
-    when is_list(Elem) ->
+  when is_list(Elem) ->
     H1 = lists:concat([H, "[", append_fact([], Elem, noend),
                        "],"]),
     append_fact(H1, Other_elem, Flag);
 append_fact(H, [Elem | Other_elem], Flag)
-    when is_tuple(Elem) ->
+  when is_tuple(Elem) ->
     Elem1 = tuple_to_list(Elem),
     H1 = lists:concat([H, "{",
                        append_fact([], Elem1, noend), "},"]),
     append_fact(H1, Other_elem, Flag);
 append_fact(H, [Elem | Other_elem], Flag)
-    when is_integer(Elem) ->
+  when is_integer(Elem) ->
     H1 = lists:concat([H, Elem, ","]),
     append_fact(H1, Other_elem, Flag);
 append_fact(H, [Elem | Other_elem], Flag) ->
@@ -826,70 +601,69 @@ append_fact(H, [Elem | Other_elem], Flag) ->
 remove_prod(R, Fun) ->
     [Kb, Alfa, Join, Agenda, State] = R,
     case eresye_tree_list:keysearch({p_node, Fun}, Join) of
-      false -> R;
-      Node ->
-          Parent_node = eresye_tree_list:get_parent(Node, Join),
-          Join1 = eresye_tree_list:remove_node(Node, Join),
-          Parent_node1 = eresye_tree_list:refresh(Parent_node,
-                                                  Join1),
-          R1 = remove_nodes(Parent_node1,
-                            [Kb, Alfa, Join1, Agenda, State]),
-          remove_prod(R1, Fun)
+        false -> R;
+        Node ->
+            Parent_node = eresye_tree_list:get_parent(Node, Join),
+            Join1 = eresye_tree_list:remove_node(Node, Join),
+            Parent_node1 = eresye_tree_list:refresh(Parent_node,
+                                                    Join1),
+            R1 = remove_nodes(Parent_node1,
+                              [Kb, Alfa, Join1, Agenda, State]),
+            remove_prod(R1, Fun)
     end.
 
 remove_nodes(Node, R) ->
     [Kb, Alfa, Join, Agenda, State] = R,
     case eresye_tree_list:have_child(Node) of
-      false ->
-          case eresye_tree_list:is_root(Node) of
-            false ->
-                Parent_node = eresye_tree_list:get_parent(Node, Join),
-                Join1 = eresye_tree_list:remove_node(Node, Join),
-                Parent_node1 = eresye_tree_list:refresh(Parent_node,
-                                                        Join1),
-                {First, _} = eresye_tree_list:get_key(Node),
-                case First of
-                  {n_node, IdNp_node} ->
-                      ParentKey = eresye_tree_list:get_key(Parent_node1),
-                      % elimino tutti i nodi relativi alle condizioni negate
-                      Np_node = eresye_tree_list:get_node(IdNp_node, Join1),
-                      Join2 = eresye_tree_list:remove_child(Node, Np_node,
+        false ->
+            case eresye_tree_list:is_root(Node) of
+                false ->
+                    Parent_node = eresye_tree_list:get_parent(Node, Join),
+                    Join1 = eresye_tree_list:remove_node(Node, Join),
+                    Parent_node1 = eresye_tree_list:refresh(Parent_node,
                                                             Join1),
-                      R1 = [Kb, Alfa, Join2, Agenda, State],
-                      Np_node1 = eresye_tree_list:refresh(Np_node, Join2),
-                      R2 = remove_nodes(Np_node1, R1),
-                      % recupero il parent node del nodo n_node passato come argomento
-                      % il parent puo' avere adesso un altro id, ma ha la stessa key
-                      Join3 = lists:nth(3, R2),
-                      Parent_node2 = eresye_tree_list:keysearch(ParentKey,
-                                                                Join3),
-                      remove_nodes(Parent_node2, R2);
-                  np_node ->
-                      R1 = [Kb, Alfa, Join1, Agenda, State],
-                      remove_nodes(Parent_node1, R1);
-                  Tab ->
-                        Alfa1 = case eresye_tree_list:is_present(Tab, Join1) of
-                                    false ->
-                                        ets:delete(Tab),
-                                        lists:keydelete(Tab, 2, Alfa);
-                                    true ->
-                                        Alfa
-                                end,
-                      R1 = [Kb, Alfa1, Join1, Agenda, State],
-                      remove_nodes(Parent_node1, R1)
-                end;
-            true -> R
-          end;
-      true -> R
+                    {First, _} = eresye_tree_list:get_key(Node),
+                    case First of
+                        {n_node, IdNp_node} ->
+                            ParentKey = eresye_tree_list:get_key(Parent_node1),
+                            %% delete all nodes of the conditions negated
+                            Np_node = eresye_tree_list:get_node(IdNp_node, Join1),
+                            Join2 = eresye_tree_list:remove_child(Node, Np_node,
+                                                                  Join1),
+                            R1 = [Kb, Alfa, Join2, Agenda, State],
+                            Np_node1 = eresye_tree_list:refresh(Np_node, Join2),
+                            R2 = remove_nodes(Np_node1, R1),
+                            %% Recovery of the parent node of the node passed as an argument n_node
+                            %% The parent can now have a different id, but has the same key
+                            Join3 = lists:nth(3, R2),
+                            Parent_node2 = eresye_tree_list:keysearch(ParentKey,
+                                                                      Join3),
+                            remove_nodes(Parent_node2, R2);
+                        np_node ->
+                            R1 = [Kb, Alfa, Join1, Agenda, State],
+                            remove_nodes(Parent_node1, R1);
+                        Tab ->
+                            Alfa1 = case eresye_tree_list:is_present(Tab, Join1) of
+                                        false ->
+                                            ets:delete(Tab),
+                                            lists:keydelete(Tab, 2, Alfa);
+                                        true ->
+                                            Alfa
+                                    end,
+                            R1 = [Kb, Alfa1, Join1, Agenda, State],
+                            remove_nodes(Parent_node1, R1)
+                    end;
+                true -> R
+            end;
+        true -> R
     end.
 
-% verifica se la condizione Cond e' gia' presente
-
+%% @doc occurs and if the condition Cond is present
 is_present(_Cond, []) -> false;
 is_present(Cond, [{C1, Tab, _Alfa_fun} | Other_cond]) ->
     case same_cond(Cond, C1) of
-      true -> {true, Tab};
-      false -> is_present(Cond, Other_cond)
+        true -> {true, Tab};
+        false -> is_present(Cond, Other_cond)
     end.
 
 same_cond(Cond1, Cond1) -> true;
@@ -897,17 +671,15 @@ same_cond(Cond1, Cond2) ->
     ?LOG("Same Cond = ~p, ~p~n", [Cond1, Cond2]),
     C2 = parse_cond(Cond2),
     S1 = prepare_string(Cond1, C2),
-    % io:format("S1=~s~n",[S1]),
     case evaluate(S1) of
-      C2 ->
-          C1 = parse_cond(Cond1),
-          S2 = prepare_string(Cond2, C1),
-          % io:format("S2=~s~n",[S2]),
-          case evaluate(S2) of
-            C1 -> true;
-            false -> false
-          end;
-      false -> false
+        C2 ->
+            C1 = parse_cond(Cond1),
+            S2 = prepare_string(Cond2, C1),
+            case evaluate(S2) of
+                C1 -> true;
+                false -> false
+            end;
+        false -> false
     end.
 
 parse_cond(L) ->
@@ -917,7 +689,7 @@ parse_cond(L) ->
     list_to_tuple(A).
 
 to_elem([]) -> [];
-% l'elemento e' una tupla
+%% to tuple
 to_elem(L) when hd(L) == ${ ->
     ElemStr = string:sub_string(L, 2),
     {List, OtherStr} = to_elem(ElemStr),
@@ -939,24 +711,24 @@ to_elem(L) ->
     Index3 = string:chr(L, $]),
     Index4 = string:chr(L, $|),
     if (Index4 /= 0) and (Index3 /= 0) and (Index1 == 0) ->
-           ElemStr = string:sub_string(L, 1, Index3),
-           OtherStr = string:sub_string(L, Index3 + 1),
-           {list_to_atom(lists:concat(["[", ElemStr])), OtherStr};
+            ElemStr = string:sub_string(L, 1, Index3),
+            OtherStr = string:sub_string(L, Index3 + 1),
+            {list_to_atom(lists:concat(["[", ElemStr])), OtherStr};
        true -> to_elem(Index1, Index2, Index3, L)
     end.
 
 to_elem(I1, I2, I3, L)
-    when I2 /= 0, (I2 < I1) or (I1 == 0),
-         (I2 < I3) or (I3 == 0) ->
-    % l'elemento e' l'ultimo elemento di una tupla
+  when I2 /= 0, (I2 < I1) or (I1 == 0),
+       (I2 < I3) or (I3 == 0) ->
+    %% the element of the last element of the tuple
     ElemStr = string:sub_string(L, 1, I2 - 1),
     OtherStr = string:sub_string(L, I2 + 1),
     Elem = get_atom(ElemStr),
     {[Elem], OtherStr};
 to_elem(I1, I2, I3, L)
-    when I3 /= 0, (I3 < I1) or (I1 == 0),
-         (I3 < I2) or (I2 == 0) ->
-    % l'elemento e' l'ultimo elemento di una lista
+  when I3 /= 0, (I3 < I1) or (I1 == 0),
+       (I3 < I2) or (I2 == 0) ->
+    %% the element of the last erement of the list
     ElemStr = string:sub_string(L, 1, I3 - 1),
     OtherStr = string:sub_string(L, I3 + 1),
     Elem = get_atom(ElemStr),
@@ -967,28 +739,26 @@ to_elem(I1, _I2, _I3, L) ->
             false ->
                 {string:sub_string(L, 1, I1 - 1),
                  string:sub_string(L, I1 + 1)};
-      true ->
-          % e' l'ultimo elemento
-          {L, []}
-    end,
+            true ->
+                %% The last element
+                {L, []}
+        end,
     Elem = [get_atom(ElemStr)],
     case to_elem(OtherStr) of
-      {Other, Str} -> E = Elem ++ Other, {E, Str};
-      Other -> A = Elem ++ Other, A
+        {Other, Str} -> E = Elem ++ Other, {E, Str};
+        Other -> A = Elem ++ Other, A
     end.
-
-% Prende in ingresso una stringa del tipo L="{elem1,elem1,...elemM}"
-% restituisce la tupla corrispondente ({elem1, elem2,...elemN})
-% trasformando le variabili in atomi (X->'X')
-
+%% @doc Takes as input a string of L-type = "{elem1, elem1, elemM}
+%% ..."  Returns the corresponding tuple ({elem1, elem2, elemN ...})
+%% Transforming the variables into atoms (X-> 'X')
 get_atom(X)
-    when hd(X) == $' ->    %'
+  when hd(X) == $' ->    %'
     L = length(X),
     case lists:nth(L, X) of
-      39 ->
-          Sub = string:sub_string(X, 2, L - 1), list_to_atom(Sub);
-      _Other ->
-          io:format(">> Errore (manca l'apice):~s~n", [X])
+        39 ->
+            Sub = string:sub_string(X, 2, L - 1), list_to_atom(Sub);
+        _Other ->
+            io:format(">> Errore (manca l'apice):~s~n", [X])
     end;
 get_atom(X) -> X1 = string:strip(X), list_to_atom(X1).
 
@@ -997,22 +767,20 @@ evaluate(String) ->
     {ok, Tokens, _} = erl_scan:string(String),
     {ok, Expr} = erl_parse:parse_exprs(Tokens),
     case catch erl_eval:exprs(Expr, erl_eval:new_bindings())
-        of
-      {'EXIT', _} -> false;
-      {value, Value, _Bindings} -> Value;
-      _ -> false
+    of
+        {'EXIT', _} -> false;
+        {value, Value, _Bindings} -> Value;
+        _ -> false
     end.
 
 prepare_fun(_Cond, []) -> "nil.";
 prepare_fun(Cond, [Cond1 | T1]) when hd(Cond) == ${ ->
     Str = lists:concat(["F=fun(", Cond, ",[", Cond1,
                         string_tail(T1, []), "])->true end."]),
-    %    io:format("ST=~s~n",[Str]),
     Str;
 prepare_fun([Cond | T], [Cond1 | T1]) ->
     Str = lists:concat(["F=fun([", Cond, string_tail(T, []),
                         "],[", Cond1, string_tail(T1, []), "])->true end."]),
-    %   io:format("ST2=~s~n",[Str]),
     Str.
 
 string_tail([], Str) -> Str;
@@ -1020,43 +788,39 @@ string_tail([C | OtherC], Str) ->
     Str1 = lists:concat([Str, ",", C]),
     string_tail(OtherC, Str1).
 
-% aggiorna il nuovo join_node inserendo eventuali token nella Beta-memory
+%% @doc join_node entering any new updates in the beta-token memory
 update_new_node(Node, Parent_node, Join, Agenda) ->
-    %  io:format("Update-Node=~w~n",[Node]),
-    %  io:format("Parent=~w~n",[Parent_node]),
     case eresye_tree_list:is_root(Parent_node) of
-      false ->
-          Children = eresye_tree_list:children(Parent_node, Join),
-          case Children -- [Node] of
-            [] ->
-                case eresye_tree_list:get_key(Parent_node) of
-                  {{n_node, _IdNp_node}, _Join_fun} ->
-                      Beta = eresye_tree_list:get_beta(Parent_node),
-                      update_from_n_node(Parent_node, Beta, Join, Agenda);
-                  {Tab, _} ->
-                      %%Tab = element(1, element(1, Parent_node)),
-                      Fact_list = ets:tab2list(Tab),
-                      update_new_node(Node, Parent_node, Join, Fact_list,
-                                      Agenda)
-                end;
-            [Child | _Other_child] ->
-                Beta = eresye_tree_list:get_beta(Child),
-                Join1 = eresye_tree_list:update_beta(Beta, Node, Join),
-                Agenda1 =
-                      case eresye_tree_list:get_key(Node) of
-                          {p_node, Rule} ->
-                              update_agenda(Agenda, Beta, Rule);
-                          _Key ->
-                              Agenda
-                end,
-                {Join1, Agenda1}
-          end;
-      true -> {Join, Agenda}
+        false ->
+            Children = eresye_tree_list:children(Parent_node, Join),
+            case Children -- [Node] of
+                [] ->
+                    case eresye_tree_list:get_key(Parent_node) of
+                        {{n_node, _IdNp_node}, _Join_fun} ->
+                            Beta = eresye_tree_list:get_beta(Parent_node),
+                            update_from_n_node(Parent_node, Beta, Join, Agenda);
+                        {Tab, _} ->
+                            Fact_list = ets:tab2list(Tab),
+                            update_new_node(Node, Parent_node, Join, Fact_list,
+                                            Agenda)
+                    end;
+                [Child | _Other_child] ->
+                    Beta = eresye_tree_list:get_beta(Child),
+                    Join1 = eresye_tree_list:update_beta(Beta, Node, Join),
+                    Agenda1 =
+                        case eresye_tree_list:get_key(Node) of
+                            {p_node, Rule} ->
+                                update_agenda(Agenda, Beta, Rule);
+                            _Key ->
+                                Agenda
+                        end,
+                    {Join1, Agenda1}
+            end;
+        true -> {Join, Agenda}
     end.
 
 update_agenda(Agenda, [], _Rule) -> Agenda;
 update_agenda(Agenda, [Tok | OtherTok], Rule) ->
-    %%io:format ("UPDATE AGENDA ~p~n", [Rule]),
     Agenda1 = signal(Tok, plus, Rule, Agenda),
     update_agenda(Agenda1, OtherTok, Rule).
 
@@ -1081,92 +845,63 @@ update_from_n_node(Parent_node, [Tok | OtherTok], Join,
     update_from_n_node(Parent_node, OtherTok, Join1,
                        Agenda1).
 
-%% execute_rule (Rule, Args, State) ->
-%%     callfunction (Rule, Args),
-%%     [Ser | _] = Args,
-%%     State1 = end_processing(State),
-%%     Data = {self(), state, State1},
-%%     Ser ! Data,
-%%     receive
-%%      {ack, X} -> X;
-%%      Other -> io:format (">> Invalid message = ~w\n", [Ser]),
-%%               throw ({badtransaction, Other})
-%%     after
-%%      5000 -> throw ({timeout, Data})
-%%     end.
-
 signal(Token, Sign, {Fun, Salience}, Agenda) ->
     case Sign of
-      plus ->
-          % spawn(ser, callfunction, [self(), Fun, Token]),
-          %io:format(">> New match for production ~w~n", [Fun]),
-          eresye_agenda:addActivation(Agenda, Fun,
-                                      [self(), Token], Salience);
-      minus ->
-          %io:format(">> Lost match for production ~w~n", [Fun]),
-          ActivationId = eresye_agenda:getActivation(Agenda,
-                                                     {Fun, [self(), Token]}),
-          eresye_agenda:deleteActivation(Agenda, ActivationId)
+        plus ->
+            eresye_agenda:addActivation(Agenda, Fun,
+                                        [self(), Token], Salience);
+        minus ->
+            ActivationId = eresye_agenda:getActivation(Agenda,
+                                                       {Fun, [self(), Token]}),
+            eresye_agenda:deleteActivation(Agenda, ActivationId)
     end.
-
-%% callfunction (Fun ,Term) ->
-%%   %io:format("callfunction~n"),
-%%   case catch (apply (Fun, Term)) of
-%%     {'EXIT', {function_clause, K}} -> false;
-%%     {'EXIT', OtherExc} -> throw (OtherExc);
-%%     Other -> Other
-%%   end.
-
-%% end_processing (State) ->
-%%   lists:delete(processing, State).
 
 %%====================================================================
 %% Fact Assertion/Retraction Functions
 %%====================================================================
-%% Insert a fact in the KB.
+
+%% @doc Insert a fact in the KB.
 %% It also checks if the fact verifies any condition,
 %% if this is the case the fact is also inserted in the alpha-memory
-%%====================================================================
 assert_fact(R, Fact) ->
     [Kb, Alfa, Join, Agenda, State] = R,
     case lists:member(Fact, Kb) of
-      false ->
-          Kb1 = [Fact | Kb],
-          check_cond([Kb1, Alfa, Join, Agenda, State], Alfa,
-                     {Fact, plus});
-      true -> R
+        false ->
+            Kb1 = [Fact | Kb],
+            check_cond([Kb1, Alfa, Join, Agenda, State], Alfa,
+                       {Fact, plus});
+        true -> R
     end.
-
-% rimuove un 'fatto' dalla Knowledge Base e se verifica qualche
-% condizione  viene eliminato anche dalla corrispondente alfa-memory
+%% @doc removes a 'fact' in the Knowledge Base and if something occurs
+%% Condition is also deleted from the corresponding alpha-memory
 retract_fact(R, Fact) ->
     [Kb, Alfa, Join, Agenda, State] = R,
     case lists:member(Fact, Kb) of
-      true ->
-          Kb1 = Kb -- [Fact],
-          check_cond([Kb1, Alfa, Join, Agenda, State], Alfa,
-                     {Fact, minus});
-      false -> R
+        true ->
+            Kb1 = Kb -- [Fact],
+            check_cond([Kb1, Alfa, Join, Agenda, State], Alfa,
+                       {Fact, minus});
+        false -> R
     end.
 
 check_cond(R, [], {_Fact, _Sign}) -> R;
 check_cond(R, [{_C1, Tab, Alfa_fun} | T],
            {Fact, Sign}) ->
     case catch Alfa_fun(Fact) of
-      true ->
-          case Sign of
-            plus -> ets:insert(Tab, Fact);
-            minus -> ets:delete_object(Tab, Fact)
-          end,
-          R1 = pass_fact(R, Tab, {Fact, Sign}),
-          check_cond(R1, T, {Fact, Sign});
-      {'EXIT', {function_clause, _}} ->
-          check_cond(R, T, {Fact, Sign});
-      _Other -> check_cond(R, T, {Fact, Sign})
+        true ->
+            case Sign of
+                plus -> ets:insert(Tab, Fact);
+                minus -> ets:delete_object(Tab, Fact)
+            end,
+            R1 = pass_fact(R, Tab, {Fact, Sign}),
+            check_cond(R1, T, {Fact, Sign});
+        {'EXIT', {function_clause, _}} ->
+            check_cond(R, T, {Fact, Sign});
+        _Other -> check_cond(R, T, {Fact, Sign})
     end.
 
-% propaga il 'fatto' a tutti i nodi che seguono l'alfa-memory
-% con indice Tab
+%% @doc propagates the 'done' to all the nodes that follow the alpha-memory
+%% With an index tab
 pass_fact(R, Tab, {Fact, Sign}) ->
     [Kb, Alfa, Join, Agenda, State] = R,
     Succ_node_list = eresye_tree_list:lookup_all(Tab, Join),
@@ -1190,36 +925,33 @@ propagate([Join_node | T], {Fact, Sign}, Join,
                                                           Join),
                 pass_tok(Tok_list, Children_list,
                          Join, Agenda)
-    end,
+        end,
     propagate(T, {Fact, Sign}, Join1, Agenda1).
 
 propagate_nnode(_Join_node, [], _, Join, Agenda) ->
     {Join, Agenda};
 propagate_nnode(Join_node, Tok_list, Sign, Join,
                 Agenda) ->
-    % io:format("Tok_list=~w~n",[Tok_list]),
     Children_list = eresye_tree_list:children(Join_node,
                                               Join),
     Toks = [propagate_nnode_1(V1, Sign) || V1 <- Tok_list],
-    % io:format("Toks=~w~n",[Toks]),
     case Sign of
-      plus -> pass_tok(Toks, Children_list, Join, Agenda);
-      minus ->
-          {{n_node, IdNp_node}, Join_fun} =
-              eresye_tree_list:get_key(Join_node),
-          test_nnode(Toks, IdNp_node, Join_fun, Join_node, Join,
-                     Agenda)
+        plus -> pass_tok(Toks, Children_list, Join, Agenda);
+        minus ->
+            {{n_node, IdNp_node}, Join_fun} =
+                eresye_tree_list:get_key(Join_node),
+            test_nnode(Toks, IdNp_node, Join_fun, Join_node, Join,
+                       Agenda)
     end.
 
 propagate_nnode_1(Tk, Sign) ->
     L = element(1, Tk),
     T1 = lists:sublist(L, length(L) - 1),
     case Sign of
-      plus -> {T1, minus};
-      minus -> {T1, plus}
+        plus -> {T1, minus};
+        minus -> {T1, plus}
     end.
-
-% propaga ogni token ai nodi presenti in Children_list
+%% @doc Token propagates all the nodes in Children_list
 pass_tok([], _Children_list, Join, Agenda) ->
     {Join, Agenda};
 pass_tok([Tok | T], Children_list, Join, Agenda) ->
@@ -1228,11 +960,10 @@ pass_tok([Tok | T], Children_list, Join, Agenda) ->
     Children_list1 = refresh(Children_list, Join1),
     pass_tok(T, Children_list1, Join1, Agenda1).
 
-% inserisce il token Tok nella Beta_memory del Join_node,
-% confronta il token Tok con tutti i fatti presenti nell'alfa memory
-% associata al Join_node e se si ha un esito positivo propaga il
-% token ai nodi figli
-
+%% @doc Insert the token in Tok Beta_memory of Join_node, Token Tok
+%% compares the present with all the facts nell'alfa memory Associated
+%% with Join_node and if you have a successful propagates Token to the
+%% child nodes
 left_act({_Token, _Sign}, [], Join, Agenda) ->
     {Join, Agenda};
 left_act({Token, Sign}, [Join_node | T], Join,
@@ -1246,34 +977,33 @@ left_act({Token, Sign}, [Join_node | T], Join,
     Join1 = eresye_tree_list:update_beta(Beta1, Join_node,
                                          Join),
     case eresye_tree_list:get_key(Join_node) of
-      {p_node, Rule} ->
-          %%io:format ("LEFT ACT ~p~n", [Rule]),
-          Agenda1 = signal(Token, Sign, Rule, Agenda),
-          left_act({Token, Sign}, T, Join1, Agenda1);
-      {{n_node, IdNp_node}, Join_fun} ->
-          left_act_nnode({Token, Sign}, IdNp_node, Join_fun,
-                         [Join_node | T], Join1, Agenda);
-      {np_node, nil} ->
-          Children_list = eresye_tree_list:children(Join_node,
-                                                    Join1),
-          {Join2, Agenda1} = propagate(Children_list,
-                                       {Token, Sign}, Join1, Agenda),
-          left_act({Token, Sign}, T, Join2, Agenda1);
-      {Tab, Join_fun} ->
-          Alfa_mem = ets:tab2list(Tab),
-          Tok_list = join_left({Token, Sign}, Alfa_mem, Join_fun),
-          Children_list = eresye_tree_list:children(Join_node,
-                                                    Join1),
-          {Join2, Agenda1} = pass_tok(Tok_list, Children_list,
-                                      Join1, Agenda),
-          left_act({Token, Sign}, T, Join2, Agenda1)
+        {p_node, Rule} ->
+            Agenda1 = signal(Token, Sign, Rule, Agenda),
+            left_act({Token, Sign}, T, Join1, Agenda1);
+        {{n_node, IdNp_node}, Join_fun} ->
+            left_act_nnode({Token, Sign}, IdNp_node, Join_fun,
+                           [Join_node | T], Join1, Agenda);
+        {np_node, nil} ->
+            Children_list = eresye_tree_list:children(Join_node,
+                                                      Join1),
+            {Join2, Agenda1} = propagate(Children_list,
+                                         {Token, Sign}, Join1, Agenda),
+            left_act({Token, Sign}, T, Join2, Agenda1);
+        {Tab, Join_fun} ->
+            Alfa_mem = ets:tab2list(Tab),
+            Tok_list = join_left({Token, Sign}, Alfa_mem, Join_fun),
+            Children_list = eresye_tree_list:children(Join_node,
+                                                      Join1),
+            {Join2, Agenda1} = pass_tok(Tok_list, Children_list,
+                                        Join1, Agenda),
+            left_act({Token, Sign}, T, Join2, Agenda1)
     end.
 
 join_left({Tok, Sign}, Mem, Join_fun) ->
     lists:foldl(fun (WmeOrTok, Tok_list) ->
                         Tok1 = match(WmeOrTok, Tok, Join_fun),
                         case Tok1 of
-                          [] -> Tok_list;
+                            [] -> Tok_list;
                             _Other -> Tok_list ++ [{Tok1, Sign}]
                         end
                 end,
@@ -1285,13 +1015,13 @@ left_act_nnode({Token, Sign}, IdNp_node, Join_fun,
     BetaN = eresye_tree_list:get_beta(Np_node),
     Tok_list = join_left({Token, Sign}, BetaN, Join_fun),
     case Tok_list of
-      [] ->
-          Children_list = eresye_tree_list:children(Join_node,
-                                                    Join),
-          {Join1, Agenda1} = pass_tok([{Token, Sign}],
-                                      Children_list, Join, Agenda),
-          left_act({Token, Sign}, T, Join1, Agenda1);
-      Tok_list -> left_act({Token, Sign}, T, Join, Agenda)
+        [] ->
+            Children_list = eresye_tree_list:children(Join_node,
+                                                      Join),
+            {Join1, Agenda1} = pass_tok([{Token, Sign}],
+                                        Children_list, Join, Agenda),
+            left_act({Token, Sign}, T, Join1, Agenda1);
+        Tok_list -> left_act({Token, Sign}, T, Join, Agenda)
     end.
 
 test_nnode([], _, _, _, Join, Agenda) -> {Join, Agenda};
@@ -1302,10 +1032,10 @@ test_nnode([Tok | OtherTok], IdNpNode, Join_fun,
     test_nnode(OtherTok, IdNpNode, Join_fun, Join_node,
                Join1, Agenda1).
 
-% confronta il nuovo Wme con tutti i token presenti nella Beta-memory
-% genitore e ritorna una lista di nuovi token ([Tok1+Wme, Tok2+Wme,...])
-% o una lista vuota se il Wme non 'matcha' con i token della Beta-memory
 
+%% @doc WME compares with the new all tokens in the beta-memory Parent
+%% and returns a list of new tokens ([+ Tok1 WME, WME + Tok2,...])  Or
+%% an empty list if the WME not 'match' with tokens of Beta-memory
 right_act({Fact, Sign}, Join_node) ->
     Beta = element(2, Join_node),
     Join_fun = element(2, element(1, Join_node)),
@@ -1323,10 +1053,10 @@ join_right({Fact, Sign}, [Tok | T], Join_fun,
            PassedTok) ->
     Pass = match(Fact, Tok, Join_fun),
     case Pass of
-      [] -> join_right({Fact, Sign}, T, Join_fun, PassedTok);
+        [] -> join_right({Fact, Sign}, T, Join_fun, PassedTok);
         _New_tok ->
-          L = PassedTok ++ [{Pass, Sign}],
-          join_right({Fact, Sign}, T, Join_fun, L)
+            L = PassedTok ++ [{Pass, Sign}],
+            join_right({Fact, Sign}, T, Join_fun, L)
     end.
 
 refresh([], _Join, L) -> lists:reverse(L);
@@ -1337,12 +1067,12 @@ refresh([Node | OtherNode], Join, L) ->
 
 refresh(N, Join) -> refresh(N, Join, []).
 
-% fa il match tra Wme e il token Tok e restituisce una lista vuota in caso
-% negativo o un nuovo token (Tok+Wme) in caso positivo
+%% @doc WME is the match between the token and Tok and returns an empty list in case
+%% Negative or a new token (Tok + WME) if so
 match(Wme, Tok, Join_fun) ->
     case catch Join_fun(Wme, Tok) of
-      true -> Tok ++ [Wme];
-      {'EXIT', {function_clause, _}} -> [];
+        true -> Tok ++ [Wme];
+        {'EXIT', {function_clause, _}} -> [];
         _Other -> []
     end.
 
@@ -1353,7 +1083,7 @@ append(Beta, {Fact, Sign}) ->
                 end,
                 [], Beta).
 
-% condivide  o crea un join-node
+%% @doc shares or create a join-node
 make_join_node(J, {new, Tab}, Cond, P, Parent_node,
                Agenda) ->
     Join_fun = evaluate(prepare_fun(Cond, P)),
@@ -1362,15 +1092,15 @@ make_join_node(J, {old, Tab}, Cond, P, Parent_node,
                Agenda) ->
     Result = eresye_tree_list:child(Tab, Parent_node, J),
     case Result of
-      false ->
-          Join_fun = evaluate(prepare_fun(Cond, P)),
-          new_join(J, Tab, Join_fun, Parent_node, Agenda);
-      Node -> {Node, J, Agenda}
+        false ->
+            Join_fun = evaluate(prepare_fun(Cond, P)),
+            new_join(J, Tab, Join_fun, Parent_node, Agenda);
+        Node -> {Node, J, Agenda}
     end.
 
 new_join(J, Tab, Join_fun, Parent_node, Agenda) ->
     Key = {Tab, Join_fun},
-    Value = [],                               %Beta_parent
+    Value = [],
     {Node, J1} = eresye_tree_list:insert(Key, Value,
                                          Parent_node, J),
     {J2, Agenda1} = update_new_node(Node, Parent_node, J1,
