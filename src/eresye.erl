@@ -8,8 +8,6 @@
 %%% http://www.opensource.org/licenses/bsd-license.php
 -module(eresye).
 
--behaviour(gen_server).
-
 -ifdef(debug).
 -define(LOG(F, X), io:format(F, X)).
 -else.
@@ -19,147 +17,116 @@
 %%====================================================================
 %% Include files
 %%====================================================================
+-include("internal.hrl").
 
 %%====================================================================
 %% External exports
 %%====================================================================
 
--export([add_rule/2, add_rule/3, assert/2, get_kb/1,
-         get_ontology/1, get_rete/1, get_rules_fired/1,
-         query_kb/2, remove_rule/2, retract/2, start/1, start/2,
-         start_link/1, stop/1, wait/2, wait_and_retract/2]).
-
-%%====================================================================
-%% Internal exports
-%%====================================================================
-
--export([code_change/3, handle_call/3, handle_cast/2,
-         handle_info/2, init/1, terminate/2]).
+-export([new/0, new/2, new_with_ontology/1, new_with_state/1,
+         add_rule/2, add_rule/3, assert/2, get_kb/1, get_ontology/1,
+         get_rules_fired/1, get_client_state/1, set_client_state/2,
+         query_kb/2, remove_rule/2, retract/2]).
 
 %%====================================================================
 %% External functions
 %%====================================================================
-start(EngineName) ->
-    gen_server:start({local, EngineName}, ?MODULE,
-                     [EngineName, nil], []).
+new() ->
+    new(nil, undefined).
 
-start(EngineName, Ontology) ->
-    gen_server:start({local, EngineName}, ?MODULE,
-                     [EngineName, Ontology], []).
+new(Ontology, ClientState) ->
+    eresye_agenda:new(#eresye{kb=[], alfa=[],
+                              join=eresye_tree_list:new(),
+                              ontology=Ontology,
+                              pending_actions=[],
+                              client_state=ClientState}).
 
-start_link(EngineName) ->
-    gen_server:start_link({local, EngineName}, ?MODULE,
-                          [EngineName, nil], []).
+new_with_ontology(Ontology) ->
+    new(Ontology, undefined).
 
-stop(EngineName) -> gen_server:call(EngineName, {stop}).
+new_with_state(State) ->
+    new(nil, State).
 
-assert(EngineName, Fact) when is_list(Fact) ->
-    [assert(EngineName, F) || F <- Fact], ok;
-assert(EngineName, Fact) when is_tuple(Fact) ->
-    gen_server:call(EngineName, {assert, Fact}).
+set_client_state(EngineState, NewState) ->
+    EngineState#eresye{client_state=NewState}.
 
-retract(EngineName, Fact) when is_list(Fact) ->
-    [retract(EngineName, F) || F <- Fact];
-retract(EngineName, Fact) when is_tuple(Fact) ->
-    gen_server:call(EngineName, {retract, Fact}).
+get_client_state(#eresye{client_state=State}) ->
+    State.
 
-add_rule(Name, Fun) -> add_rule(Name, Fun, 0).
+%% @doc Insert a fact in the KB.
+%% It also checks if the fact verifies any condition,
+%% if this is the case the fact is also inserted in the alpha-memory
+assert(EngineState0, Facts) when is_list(Facts) ->
+    lists:foldl(fun(Fact, EngineState1) ->
+                        assert(EngineState1, Fact)
+                end, EngineState0, Facts);
+assert(EngineState = #eresye{kb=Kb, alfa=Alfa}, Fact) when is_tuple(Fact) ->
+    execute_pending(case lists:member(Fact, Kb) of
+                        false ->
+                            Kb1 = [Fact | Kb],
+                            check_cond(EngineState#eresye{kb=Kb1}, Alfa,
+                                       {Fact, plus});
+                        true -> EngineState
+                    end).
 
-add_rule(Name, {Module, Fun, ClauseID}, Salience) ->
-    add_rule(Name, {Module, Fun}, ClauseID, Salience);
-add_rule(Name, {Module, Fun}, Salience) ->
-    add_rule(Name, {Module, Fun}, 0, Salience).
+%% @doc removes a 'fact' in the Knowledge Base and if something occurs
+%% Condition is also deleted from the corresponding alpha-memory
+retract(EngineState0, Facts) when is_list(Facts) ->
+    lists:foldl(fun(Fact, EngineState1) ->
+                        retract(EngineState1, Fact)
+                end, EngineState0, Facts);
+retract(EngineState = #eresye{kb=Kb, alfa=Alfa}, Fact) when is_tuple(Fact) ->
+    execute_pending(case lists:member(Fact, Kb) of
+                        true ->
+                            Kb1 = Kb -- [Fact],
+                            check_cond(EngineState#eresye{kb=Kb1}, Alfa,
+                                       {Fact, minus});
+                        false -> EngineState
+                    end).
 
-add_rule(Name, Fun, ClauseID, Salience) ->
-    Ontology = get_ontology(Name),
-    case get_conds(Fun, Ontology, ClauseID) of
-        error -> error;
-        CondsList ->
-            lists:foreach(fun (X) ->
-                                  case X of
-                                      {error, Msg} ->
-                                          erlang:throw({eresye, {error_adding_rule,
-                                                                 [Fun, Msg]}});
-                                      {PConds, NConds} ->
-                                          ?LOG(">> PConds=~p~n", [PConds]),
-                                          ?LOG(">> NConds=~p~n", [NConds]),
-                                          gen_server:call(Name,
-                                                          {add_rule,
-                                                           {Fun, Salience},
-                                                           {PConds, NConds}})
-                                  end
-                          end,
-                          CondsList),
-            ok
-    end.
+add_rule(EngineState, Fun) -> add_rule(EngineState, Fun, 0).
 
-remove_rule(Name, Rule) ->
-    gen_server:call(Name, {remove_rule, Rule}).
+add_rule(EngineState, {Module, Fun, ClauseID}, Salience) ->
+    add_rule(EngineState, {Module, Fun}, ClauseID, Salience);
+add_rule(EngineState, {Module, Fun}, Salience) ->
+    add_rule(EngineState, {Module, Fun}, 0, Salience).
 
-wait(Name, Pattern) ->
-    wait_retract(Name, Pattern, false).
+add_rule(EngineState0, Fun, ClauseID, Salience) ->
+    Ontology = get_ontology(EngineState0),
+      case get_conds(Fun, Ontology, ClauseID) of
+          error -> erlang:throw({eresye, {error_extracting_conditions, Fun}});
+          CondsList ->
+              execute_pending(
+                lists:foldl(fun (X, EngineState1) ->
+                                    case X of
+                                        {error, Msg} ->
+                                            erlang:throw({eresye, {error_adding_rule,
+                                                                   [Fun, Msg]}});
+                                        {PConds, NConds} ->
+                                            ?LOG(">> PConds=~p~n", [PConds]),
+                                            ?LOG(">> NConds=~p~n", [NConds]),
+                                            add_rule__(EngineState1,
+                                                       {Fun, Salience},
+                                                       {PConds, NConds})
+                                    end
+                            end,
+                            EngineState0,
+                            CondsList))
+      end.
 
-wait_and_retract(Name, Pattern) ->
-    wait_retract(Name, Pattern, true).
+remove_rule(EngineState0, Rule) ->
+    execute_pending(remove_prod(eresye_agenda:deleteRule(EngineState0, Rule), Rule)).
 
-wait_retract(Name, Pattern, NeedRetract)
-  when is_tuple(Pattern) ->
-    PList = tuple_to_list(Pattern),
-    SList = [term_to_list(X) || X <- PList],
-    FunList = [if is_function(X) -> X;
-                  true -> fun (_) -> true end
-               end
-               || X <- PList],
-    [_ | DList] = lists:foldl(fun (X, Sum) ->
-                                      lists:concat([Sum, ",", X])
-                              end,
-                              [], SList),
-    PidHash = erlang:phash2(self()),
-    ClientCondition =
-        lists:flatten(io_lib:format("{client, ~p, Pid, FunList}",
-                                    [PidHash])),
-    FinalPattern = [ClientCondition,
-                    lists:concat(["{", DList, "}"])],
-    RetractString = if NeedRetract ->
-                            "eresye:retract (Engine, Pattern__),";
-                       true -> ""
-                    end,
-    SFun =
-        lists:flatten(io_lib:format("fun (Engine, {client, ~p, Pid, FunList} "
-                                    "= X, Pattern__) -> FunPatPairs = lists:zip "
-                                    "(FunList, tuple_to_list (Pattern__)), "
-                                    "FunEval = [F(X) || {F, X} <- FunPatPairs], "
-                                    "A = lists:foldr (fun (X,Y) -> X and "
-                                    "Y end, true, FunEval), if A -> eresye:retract "
-                                    "(Engine, X), ~s Pid ! Pattern__;    "
-                                    "true -> nil end end.",
-                                    [PidHash, RetractString])),
-    Fun = evaluate(SFun),
-    gen_server:call(Name,
-                    {add_rule, {Fun, 0}, {FinalPattern, []}}),
-    eresye:assert(Name, {client, PidHash, self(), FunList}),
-    Pat = receive Pat0 -> Pat0 end,
-    gen_server:call(Name, {remove_rule, Fun}),
-    Pat.
+get_ontology(#eresye{ontology=Ontology}) ->
+    Ontology.
 
-term_to_list(X) when is_integer(X) ->
-    integer_to_list(X);
-term_to_list(X) when is_atom(X) -> atom_to_list(X);
-term_to_list(X) when is_function(X) -> "_";
-term_to_list(X) -> X.
+get_rules_fired(EngineState) ->
+    eresye_agenda:getRulesFired(EngineState).
 
-get_ontology(Name) ->
-    gen_server:call(Name, {get_ontology}).
+get_kb(#eresye{kb=Kb}) ->
+    Kb.
 
-get_rete(Name) -> gen_server:call(Name, {get_rete}).
-
-get_rules_fired(Name) ->
-    gen_server:call(Name, {get_rules_fired}).
-
-get_kb(Name) ->
-    [KB | _] = gen_server:call(Name, {get_rete}), KB.
-
-query_kb(Name, Pattern) when is_tuple(Pattern) ->
+query_kb(EngineState, Pattern) when is_tuple(Pattern) ->
     PList = tuple_to_list(Pattern),
     PatternSize = length(PList),
     FunList = [if is_function(X) -> X;
@@ -174,87 +141,38 @@ query_kb(Name, Pattern) when is_tuple(Pattern) ->
                                                       true, FunEval),
                             MatchResult
                     end,
-    KB = [V1
-          || V1 <- get_kb(Name), query_kb_1(V1, PatternSize)],
+    KB = [X
+          || X <- get_kb(EngineState), size(X) == PatternSize],
     lists:filter(MatchFunction, KB);
-%%
+
 query_kb(Name, F) when is_function(F) ->
     lists:filter(F, get_kb(Name)).
-
-query_kb_1(X, PatternSize) -> size(X) == PatternSize.
-
-%%====================================================================
-%% Callback functions
-%%====================================================================
-init([EngineName, Ontology]) ->
-    %% EngineState = [Kb, Alfa, Join, Agenda, State]
-    EngineState = [[], [], eresye_tree_list:new(),
-                   eresye_agenda:start(EngineName), Ontology],
-    {ok, EngineState}.
-
-handle_cast(_, State) -> {noreply, State}.
-
-handle_info(_, State) -> {noreply, State}.
-
-handle_call({stop}, _, State) ->
-    {stop, normal, ok, State};
-handle_call({assert, Fact}, _, State) ->
-    NewState = assert_fact(State, Fact),
-    {reply, ok, NewState};
-handle_call({retract, Fact}, _, State) ->
-    NewState = retract_fact(State, Fact),
-    {reply, ok, NewState};
-handle_call({add_rule, {Fun, Salience},
-             {PConds, NConds}},
-            _, State) ->
-    Rule = {Fun, Salience},
-    [_, _, Join | _] = State,
-    Root = eresye_tree_list:get_root(Join),
-    NewState =
-        case NConds of
-            [] ->
-                make_struct(State, Rule, PConds, [], Root,
-                            nil);
-            _ ->
-                {R1, Np_node} = make_struct(State, Rule, NConds, [],
-                                            Root, ng),
-                Root1 = eresye_tree_list:refresh(Root,
-                                                 lists:nth(3, R1)),
-                make_struct(R1, Rule, PConds, [], Root1,
-                            {Np_node, NConds})
-    end,
-    {reply, ok, NewState};
-handle_call({remove_rule, Fun}, _, EngineState) ->
-    [Kb, Alfa, Join, Agenda, State] = EngineState,
-    Agenda1 = eresye_agenda:deleteRule(Agenda, Fun),
-    R1 = [Kb, Alfa, Join, Agenda1, State],
-    R2 = remove_prod(R1, Fun),
-    {reply, ok, R2};
-handle_call({get_rules_fired}, _, State) ->
-    [_, _, _, Agenda, _] = State,
-    {reply, eresye_agenda:getRulesFired(Agenda), State};
-handle_call({get_rete}, _, State) ->
-    {reply, State, State};
-handle_call({get_ontology}, _, State) ->
-    [_, _, _, _, Ontology] = State,
-    {reply, Ontology, State}.
-
-%%====================================================================
-%% Func: code_change/3
-%%====================================================================
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
-%%====================================================================
-%% Func: terminate/2
-%%====================================================================
-terminate(_Reason, EngineState) ->
-    [_, _, _, AgendaPid, _] = EngineState,
-    gen_server:call(AgendaPid, {stop}),
-    ok.
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
+execute_pending(EngineState0 = #eresye{pending_actions=[PA | Rest]}) ->
+    EngineState1 = PA(EngineState0#eresye{pending_actions=Rest}),
+    execute_pending(EngineState1);
+execute_pending(EngineState0 = #eresye{pending_actions=[]}) ->
+    EngineState0.
+
+add_rule__(EngineState0 = #eresye{join=Join},
+           Rule,
+           {PConds, NConds}) when is_tuple(Rule)->
+    Root = eresye_tree_list:get_root(Join),
+    case NConds of
+        [] ->
+            make_struct(EngineState0, Rule, PConds, [], Root,
+                        nil);
+        _ ->
+            {EngineState1, Np_node} = make_struct(EngineState0, Rule, NConds, [],
+                                                  Root, ng),
+            Root1 = eresye_tree_list:refresh(Root,
+                                             EngineState1#eresye.join),
+            make_struct(EngineState1, Rule, PConds, [], Root1,
+                        {Np_node, NConds})
+    end.
 
 %% @doc initializes the memory with a new alpha-present the facts
 %% In the Knowledge Base that satisfy the condition Cond
@@ -467,32 +385,30 @@ build_string_condition([{cons, _, {var, _, Value1},
 
 %% @doc P and a list containing the conditions prior to Cond Of the
 %% same production
-make_struct(R, _Rule, [], _P, Cur_node, ng) ->
-    [Kb, Alfa, Join, Agenda, State] = R,
+make_struct(EngineState0 = #eresye{join=Join}, _Rule, [], _P, Cur_node, ng) ->
     %% create production node
     Key = {np_node, nil},
-    {Node, {Join2, Agenda1}} =
+    {Node, {Join2, EngineState1}} =
         case eresye_tree_list:child(Key, Cur_node, Join) of
             false ->
                 Value = [],
                 {Node0, Join1} = eresye_tree_list:insert(Key, Value,
                                                          Cur_node, Join),
-                {Node0, update_new_node(Node0, Cur_node,
-                                        Join1, Agenda)};
-            Node0 -> {Node0, {Join, Agenda}}
+                {Node0, update_new_node(EngineState0, Node0, Cur_node,
+                                        Join1)};
+            Node0 -> {Node0, {Join, EngineState0}}
         end,
-    {[Kb, Alfa, Join2, Agenda1, State], Node};
-make_struct(R, Rule, [], _P, Cur_node, nil) ->
-    [Kb, Alfa, Join, Agenda, State] = R,
+    {EngineState1#eresye{join=Join2}, Node};
+make_struct(EngineState0 = #eresye{join=Join}, Rule, [], _P, Cur_node, nil) ->
     %% create production node
     Key = {p_node, Rule},
-    {Join2, Agenda1} = case eresye_tree_list:child(Key, Cur_node, Join) of
+    {Join2, EngineState1} = case eresye_tree_list:child(Key, Cur_node, Join) of
                            false ->
                                Value = [],
                                {Node, Join1} = eresye_tree_list:insert(Key, Value,
                                                                        Cur_node, Join),
-                               update_new_node(Node, Cur_node,
-                                               Join1, Agenda);
+                               update_new_node(EngineState0, Node, Cur_node,
+                                               Join1);
                            Node ->
                                {Fun, _Salience} = Rule,
                                Key1 = element(1, Node),
@@ -500,28 +416,27 @@ make_struct(R, Rule, [], _P, Cur_node, nil) ->
                                io:format(">> Rule (~w) already present ~n", [Fun]),
                                io:format(">> with salience = ~w~n", [Sal]),
                                io:format(">> To change salience use 'set_salience()'.~n"),
-                               {Join, Agenda}
+                               {Join, EngineState0}
                        end,
-    [Kb, Alfa, Join2, Agenda1, State];
-make_struct(R, Rule, [], P, Cur_node, {Nod, NConds}) ->
-    [Kb, Alfa, Join, Agenda, State] = R,
+    EngineState1#eresye{join=Join2};
+make_struct(EngineState0 = #eresye{join=Join}, Rule, [], P, Cur_node, {Nod, NConds}) ->
     Id = eresye_tree_list:get_id(Nod),
-    {Cur_node1, Join1, Agenda1} = make_join_node(Join,
-                                                 {old, {n_node, Id}}, NConds, P,
-                                                 Cur_node, Agenda),
+    {Cur_node1, Join1, EngineState1} = make_join_node(EngineState0, Join,
+                                                      {old, {n_node, Id}}, NConds, P,
+                                                      Cur_node),
     Nod1 = eresye_tree_list:refresh(Nod, Join1),
     Join2 = eresye_tree_list:set_child(Cur_node1, Nod1,
                                        Join1),
     Key = {p_node, Rule},
-    {Join4, Agenda2} =
+    {Join4, EngineState2} =
         case eresye_tree_list:child(Key, Cur_node1, Join2) of
             false ->
                 Value = [],
                 {Node, Join3} = eresye_tree_list:insert(Key, Value,
                                                         Cur_node1, Join2),
                 Cur_node2 = eresye_tree_list:refresh(Cur_node1, Join3),
-                update_new_node(Node, Cur_node2,
-                                Join3, Agenda1);
+                update_new_node(EngineState1, Node, Cur_node2,
+                                Join3);
             Node ->
                 {Fun, _Salience} = Rule,
                 Key1 = element(1, Node),
@@ -529,20 +444,18 @@ make_struct(R, Rule, [], P, Cur_node, {Nod, NConds}) ->
                 io:format(">> Rule (~w) already present ~n", [Fun]),
                 io:format(">> with salience = ~w~n", [Sal]),
                 io:format(">> To change salience use 'set_salience()'.~n"),
-                {Join2, Agenda1}
+                {Join2, EngineState1}
         end,
-    [Kb, Alfa, Join4, Agenda2, State];
-make_struct(R, Rule, [Cond | T], P, Cur_node, Nod) ->
-    [Kb, _Alfa, Join, Agenda, State] = R,
-    {Alfa1, Tab} = add_alfa(R, Cond),
-    {Cur_node1, Join1, Agenda1} = make_join_node(Join, Tab,
-                                                 Cond, P, Cur_node, Agenda),
+    EngineState2#eresye{join=Join4};
+make_struct(EngineState0 = #eresye{join=Join}, Rule, [Cond | T], P, Cur_node, Nod) ->
+    {Alfa1, Tab} = add_alfa(EngineState0, Cond),
+    {Cur_node1, Join1, EngineState1} = make_join_node(EngineState0, Join, Tab,
+                                                      Cond, P, Cur_node),
     P1 = P ++ [Cond],
-    make_struct([Kb, Alfa1, Join1, Agenda1, State], Rule, T,
+    make_struct(EngineState1#eresye{alfa=Alfa1, join=Join1}, Rule, T,
                 P1, Cur_node1, Nod).
 
-add_alfa(R, Cond) ->
-    [Kb, Alfa, _Join, _, _] = R,
+add_alfa(#eresye{kb=Kb, alfa=Alfa}, Cond) ->
     case is_present(Cond, Alfa) of
         false ->
             Tab = ets:new(alfa, [bag]),
@@ -598,22 +511,20 @@ append_fact(H, [Elem | Other_elem], Flag) ->
     H1 = lists:concat([H, "'", Elem, "',"]),
     append_fact(H1, Other_elem, Flag).
 
-remove_prod(R, Fun) ->
-    [Kb, Alfa, Join, Agenda, State] = R,
+remove_prod(EngineState0 = #eresye{join=Join}, Fun) ->
     case eresye_tree_list:keysearch({p_node, Fun}, Join) of
-        false -> R;
+        false -> EngineState0;
         Node ->
             Parent_node = eresye_tree_list:get_parent(Node, Join),
             Join1 = eresye_tree_list:remove_node(Node, Join),
             Parent_node1 = eresye_tree_list:refresh(Parent_node,
                                                     Join1),
-            R1 = remove_nodes(Parent_node1,
-                              [Kb, Alfa, Join1, Agenda, State]),
-            remove_prod(R1, Fun)
+            EngineState1 = remove_nodes(Parent_node1,
+                                        EngineState0#eresye{join=Join1}),
+            remove_prod(EngineState1, Fun)
     end.
 
-remove_nodes(Node, R) ->
-    [Kb, Alfa, Join, Agenda, State] = R,
+remove_nodes(Node, EngineState0 = #eresye{join=Join, alfa=Alfa}) ->
     case eresye_tree_list:have_child(Node) of
         false ->
             case eresye_tree_list:is_root(Node) of
@@ -630,18 +541,16 @@ remove_nodes(Node, R) ->
                             Np_node = eresye_tree_list:get_node(IdNp_node, Join1),
                             Join2 = eresye_tree_list:remove_child(Node, Np_node,
                                                                   Join1),
-                            R1 = [Kb, Alfa, Join2, Agenda, State],
                             Np_node1 = eresye_tree_list:refresh(Np_node, Join2),
-                            R2 = remove_nodes(Np_node1, R1),
+                            EngineState1 = remove_nodes(Np_node1, EngineState0#eresye{join=Join2}),
                             %% Recovery of the parent node of the node passed as an argument n_node
                             %% The parent can now have a different id, but has the same key
-                            Join3 = lists:nth(3, R2),
+                            Join3 = EngineState1#eresye.join,
                             Parent_node2 = eresye_tree_list:keysearch(ParentKey,
                                                                       Join3),
-                            remove_nodes(Parent_node2, R2);
+                            remove_nodes(Parent_node2, EngineState1);
                         np_node ->
-                            R1 = [Kb, Alfa, Join1, Agenda, State],
-                            remove_nodes(Parent_node1, R1);
+                            remove_nodes(Parent_node1, EngineState0#eresye{join=Join1});
                         Tab ->
                             Alfa1 = case eresye_tree_list:is_present(Tab, Join1) of
                                         false ->
@@ -650,12 +559,11 @@ remove_nodes(Node, R) ->
                                         true ->
                                             Alfa
                                     end,
-                            R1 = [Kb, Alfa1, Join1, Agenda, State],
-                            remove_nodes(Parent_node1, R1)
+                            remove_nodes(Parent_node1, EngineState0#eresye{alfa=Alfa1, join=Join1})
                     end;
-                true -> R
+                true -> EngineState0
             end;
-        true -> R
+        true -> EngineState0
     end.
 
 %% @doc occurs and if the condition Cond is present
@@ -789,7 +697,7 @@ string_tail([C | OtherC], Str) ->
     string_tail(OtherC, Str1).
 
 %% @doc join_node entering any new updates in the beta-token memory
-update_new_node(Node, Parent_node, Join, Agenda) ->
+update_new_node(EngineState0, Node, Parent_node, Join) ->
     case eresye_tree_list:is_root(Parent_node) of
         false ->
             Children = eresye_tree_list:children(Parent_node, Join),
@@ -798,94 +706,71 @@ update_new_node(Node, Parent_node, Join, Agenda) ->
                     case eresye_tree_list:get_key(Parent_node) of
                         {{n_node, _IdNp_node}, _Join_fun} ->
                             Beta = eresye_tree_list:get_beta(Parent_node),
-                            update_from_n_node(Parent_node, Beta, Join, Agenda);
+                            update_from_n_node(EngineState0, Parent_node, Beta, Join);
                         {Tab, _} ->
                             Fact_list = ets:tab2list(Tab),
-                            update_new_node(Node, Parent_node, Join, Fact_list,
-                                            Agenda)
+                            update_new_node(EngineState0, Node, Parent_node, Join, Fact_list)
                     end;
                 [Child | _Other_child] ->
                     Beta = eresye_tree_list:get_beta(Child),
                     Join1 = eresye_tree_list:update_beta(Beta, Node, Join),
-                    Agenda1 =
+                    EngineState1 =
                         case eresye_tree_list:get_key(Node) of
                             {p_node, Rule} ->
-                                update_agenda(Agenda, Beta, Rule);
+                                update_agenda(EngineState0, Beta, Rule);
                             _Key ->
-                                Agenda
+                                EngineState0
                         end,
-                    {Join1, Agenda1}
+                    {Join1, EngineState1}
             end;
-        true -> {Join, Agenda}
+        true -> {Join, EngineState0}
     end.
 
-update_agenda(Agenda, [], _Rule) -> Agenda;
-update_agenda(Agenda, [Tok | OtherTok], Rule) ->
-    Agenda1 = signal(Tok, plus, Rule, Agenda),
-    update_agenda(Agenda1, OtherTok, Rule).
+update_agenda(EngineState, [], _Rule) -> EngineState;
+update_agenda(EngineState, [Tok | OtherTok], Rule) ->
+    EngineState1 = signal(EngineState, Tok, plus, Rule),
+    update_agenda(EngineState1, OtherTok, Rule).
 
-update_new_node(_Node, _Parent_node, Join, [], Agenda) ->
-    {Join, Agenda};
-update_new_node(Node, Parent_node, Join,
-                [Fact | Other_fact], Agenda) ->
+update_new_node(EngineState0, _Node, _Parent_node, Join, []) ->
+    {Join, EngineState0};
+update_new_node(EngineState0, Node, Parent_node, Join,
+                [Fact | Other_fact]) ->
     Tok_list = right_act({Fact, plus}, Parent_node),
-    {Join1, Agenda1} = pass_tok(Tok_list, [Node], Join,
-                                Agenda),
+    {Join1, EngineState1} = pass_tok(EngineState0, Tok_list, [Node], Join),
     Node1 = eresye_tree_list:refresh(Node, Join1),
-    update_new_node(Node1, Parent_node, Join1, Other_fact,
-                    Agenda1).
+    update_new_node(EngineState1, Node1, Parent_node, Join1, Other_fact).
 
-update_from_n_node(Parent_node, [], Join, Agenda) ->
+update_from_n_node(EngineState0, Parent_node, [], Join) ->
     Join1 = eresye_tree_list:update_node(Parent_node, Join),
-    {Join1, Agenda};
-update_from_n_node(Parent_node, [Tok | OtherTok], Join,
-                   Agenda) ->
-    {Join1, Agenda1} = left_act({Tok, plus}, [Parent_node],
-                                Join, Agenda),
+    {Join1, EngineState0};
+update_from_n_node(EngineState0, Parent_node, [Tok | OtherTok], Join) ->
+    {Join1, EngineState1} = left_act(EngineState0, {Tok, plus}, [Parent_node],
+                                     Join),
     update_from_n_node(Parent_node, OtherTok, Join1,
-                       Agenda1).
+                       EngineState1).
 
-signal(Token, Sign, {Fun, Salience}, Agenda) ->
-    case Sign of
-        plus ->
-            eresye_agenda:addActivation(Agenda, Fun,
-                                        [self(), Token], Salience);
-        minus ->
-            ActivationId = eresye_agenda:getActivation(Agenda,
-                                                       {Fun, [self(), Token]}),
-            eresye_agenda:deleteActivation(Agenda, ActivationId)
-    end.
+signal(EngineState0 = #eresye{pending_actions=PAList}, Token, Sign, {Fun, Salience}) ->
+    NewPA =
+        case Sign of
+            plus ->
+                fun(EngineState1) ->
+                        eresye_agenda:addActivation(EngineState1, Fun,
+                                                    Token, Salience)
+                end;
+            minus ->
+                ActivationId = eresye_agenda:getActivation(EngineState0,
+                                                           {Fun, Token}),
+                fun(EngineState1) ->
+                        eresye_agenda:deleteActivation(EngineState1, ActivationId)
+                end
+        end,
+    EngineState0#eresye{pending_actions=PAList ++ [NewPA]}.
 
 %%====================================================================
 %% Fact Assertion/Retraction Functions
 %%====================================================================
-
-%% @doc Insert a fact in the KB.
-%% It also checks if the fact verifies any condition,
-%% if this is the case the fact is also inserted in the alpha-memory
-assert_fact(R, Fact) ->
-    [Kb, Alfa, Join, Agenda, State] = R,
-    case lists:member(Fact, Kb) of
-        false ->
-            Kb1 = [Fact | Kb],
-            check_cond([Kb1, Alfa, Join, Agenda, State], Alfa,
-                       {Fact, plus});
-        true -> R
-    end.
-%% @doc removes a 'fact' in the Knowledge Base and if something occurs
-%% Condition is also deleted from the corresponding alpha-memory
-retract_fact(R, Fact) ->
-    [Kb, Alfa, Join, Agenda, State] = R,
-    case lists:member(Fact, Kb) of
-        true ->
-            Kb1 = Kb -- [Fact],
-            check_cond([Kb1, Alfa, Join, Agenda, State], Alfa,
-                       {Fact, minus});
-        false -> R
-    end.
-
-check_cond(R, [], {_Fact, _Sign}) -> R;
-check_cond(R, [{_C1, Tab, Alfa_fun} | T],
+check_cond(EngineState, [], {_Fact, _Sign}) -> EngineState;
+check_cond(EngineState0, [{_C1, Tab, Alfa_fun} | T],
            {Fact, Sign}) ->
     case catch Alfa_fun(Fact) of
         true ->
@@ -893,81 +778,76 @@ check_cond(R, [{_C1, Tab, Alfa_fun} | T],
                 plus -> ets:insert(Tab, Fact);
                 minus -> ets:delete_object(Tab, Fact)
             end,
-            R1 = pass_fact(R, Tab, {Fact, Sign}),
-            check_cond(R1, T, {Fact, Sign});
+            EngineState1 = pass_fact(EngineState0, Tab, {Fact, Sign}),
+            check_cond(EngineState1, T, {Fact, Sign});
         {'EXIT', {function_clause, _}} ->
-            check_cond(R, T, {Fact, Sign});
-        _Other -> check_cond(R, T, {Fact, Sign})
+            check_cond(EngineState0, T, {Fact, Sign});
+        _Other -> check_cond(EngineState0, T, {Fact, Sign})
     end.
 
 %% @doc propagates the 'done' to all the nodes that follow the alpha-memory
 %% With an index tab
-pass_fact(R, Tab, {Fact, Sign}) ->
-    [Kb, Alfa, Join, Agenda, State] = R,
+pass_fact(EngineState0 = #eresye{join=Join}, Tab, {Fact, Sign}) ->
     Succ_node_list = eresye_tree_list:lookup_all(Tab, Join),
-    {Join1, Agenda1} = propagate(Succ_node_list,
-                                 {Fact, Sign}, Join, Agenda),
-    [Kb, Alfa, Join1, Agenda1, State].
+    {Join1, EngineState1} = propagate(EngineState0, Succ_node_list,
+                                      {Fact, Sign}, Join),
+    EngineState1#eresye{join=Join1}.
 
-propagate([], {_Fact, _Sign}, Join, Agenda) ->
-    {Join, Agenda};
-propagate([Join_node | T], {Fact, Sign}, Join,
-          Agenda) ->
+propagate(EngineState0, [], {_Fact, _Sign}, Join) ->
+    {Join, EngineState0};
+propagate(EngineState0, [Join_node | T], {Fact, Sign}, Join) ->
     Join_node1 = eresye_tree_list:refresh(Join_node, Join),
     Tok_list = right_act({Fact, Sign}, Join_node1),
-    {Join1, Agenda1} =
+    {Join1, EngineState1} =
         case eresye_tree_list:get_key(Join_node1) of
             {{n_node, _}, _} ->
-                propagate_nnode(Join_node1, Tok_list,
-                                Sign, Join, Agenda);
+                propagate_nnode(EngineState0, Join_node1, Tok_list,
+                                Sign, Join);
             {_Tab, _Fun} ->
                 Children_list = eresye_tree_list:children(Join_node1,
                                                           Join),
-                pass_tok(Tok_list, Children_list,
-                         Join, Agenda)
+                pass_tok(EngineState0, Tok_list, Children_list,
+                         Join)
         end,
-    propagate(T, {Fact, Sign}, Join1, Agenda1).
+    propagate(EngineState1, T, {Fact, Sign}, Join1).
 
-propagate_nnode(_Join_node, [], _, Join, Agenda) ->
-    {Join, Agenda};
-propagate_nnode(Join_node, Tok_list, Sign, Join,
-                Agenda) ->
+propagate_nnode(EngineState0, _Join_node, [], _, Join) ->
+    {Join, EngineState0};
+propagate_nnode(EngineState0, Join_node, Tok_list, Sign, Join) ->
     Children_list = eresye_tree_list:children(Join_node,
                                               Join),
-    Toks = [propagate_nnode_1(V1, Sign) || V1 <- Tok_list],
+    Toks = [make_toks(Tok, Sign) || Tok <- Tok_list],
     case Sign of
-        plus -> pass_tok(Toks, Children_list, Join, Agenda);
+        plus -> pass_tok(EngineState0, Toks, Children_list, Join);
         minus ->
             {{n_node, IdNp_node}, Join_fun} =
                 eresye_tree_list:get_key(Join_node),
-            test_nnode(Toks, IdNp_node, Join_fun, Join_node, Join,
-                       Agenda)
+            test_nnode(EngineState0, Toks, IdNp_node, Join_fun, Join_node, Join)
     end.
 
-propagate_nnode_1(Tk, Sign) ->
+make_toks(Tk, Sign) ->
     L = element(1, Tk),
     T1 = lists:sublist(L, length(L) - 1),
     case Sign of
         plus -> {T1, minus};
         minus -> {T1, plus}
     end.
+
 %% @doc Token propagates all the nodes in Children_list
-pass_tok([], _Children_list, Join, Agenda) ->
-    {Join, Agenda};
-pass_tok([Tok | T], Children_list, Join, Agenda) ->
-    {Join1, Agenda1} = left_act(Tok, Children_list, Join,
-                                Agenda),
+pass_tok(EngineState0, [], _Children_list, Join) ->
+    {Join, EngineState0};
+pass_tok(EngineState0, [Tok | T], Children_list, Join) ->
+    {Join1, EngineState1} = left_act(EngineState0, Tok, Children_list, Join),
     Children_list1 = refresh(Children_list, Join1),
-    pass_tok(T, Children_list1, Join1, Agenda1).
+    pass_tok(EngineState1, T, Children_list1, Join1).
 
 %% @doc Insert the token in Tok Beta_memory of Join_node, Token Tok
 %% compares the present with all the facts nell'alfa memory Associated
 %% with Join_node and if you have a successful propagates Token to the
 %% child nodes
-left_act({_Token, _Sign}, [], Join, Agenda) ->
-    {Join, Agenda};
-left_act({Token, Sign}, [Join_node | T], Join,
-         Agenda) ->
+left_act(EngineState0, {_Token, _Sign}, [], Join) ->
+    {Join, EngineState0};
+left_act(EngineState0, {Token, Sign}, [Join_node | T], Join) ->
     Beta = eresye_tree_list:get_beta(Join_node),
     Beta1 =
         case Sign of
@@ -978,25 +858,25 @@ left_act({Token, Sign}, [Join_node | T], Join,
                                          Join),
     case eresye_tree_list:get_key(Join_node) of
         {p_node, Rule} ->
-            Agenda1 = signal(Token, Sign, Rule, Agenda),
-            left_act({Token, Sign}, T, Join1, Agenda1);
+            left_act(signal(EngineState0, Token, Sign, Rule),
+                     {Token, Sign}, T, Join1);
         {{n_node, IdNp_node}, Join_fun} ->
-            left_act_nnode({Token, Sign}, IdNp_node, Join_fun,
-                           [Join_node | T], Join1, Agenda);
+            left_act_nnode(EngineState0, {Token, Sign}, IdNp_node, Join_fun,
+                           [Join_node | T], Join1);
         {np_node, nil} ->
             Children_list = eresye_tree_list:children(Join_node,
                                                       Join1),
-            {Join2, Agenda1} = propagate(Children_list,
-                                         {Token, Sign}, Join1, Agenda),
-            left_act({Token, Sign}, T, Join2, Agenda1);
+            {Join2, EngineState1} = propagate(EngineState0, Children_list,
+                                              {Token, Sign}, Join1),
+            left_act(EngineState1, {Token, Sign}, T, Join2);
         {Tab, Join_fun} ->
             Alfa_mem = ets:tab2list(Tab),
             Tok_list = join_left({Token, Sign}, Alfa_mem, Join_fun),
             Children_list = eresye_tree_list:children(Join_node,
                                                       Join1),
-            {Join2, Agenda1} = pass_tok(Tok_list, Children_list,
-                                        Join1, Agenda),
-            left_act({Token, Sign}, T, Join2, Agenda1)
+            {Join2, EngineState1} = pass_tok(EngineState0, Tok_list, Children_list,
+                                        Join1),
+            left_act(EngineState1, {Token, Sign}, T, Join2)
     end.
 
 join_left({Tok, Sign}, Mem, Join_fun) ->
@@ -1009,8 +889,8 @@ join_left({Tok, Sign}, Mem, Join_fun) ->
                 end,
                 [], Mem).
 
-left_act_nnode({Token, Sign}, IdNp_node, Join_fun,
-               [Join_node | T], Join, Agenda) ->
+left_act_nnode(EngineState0, {Token, Sign}, IdNp_node, Join_fun,
+               [Join_node | T], Join) ->
     Np_node = eresye_tree_list:get_node(IdNp_node, Join),
     BetaN = eresye_tree_list:get_beta(Np_node),
     Tok_list = join_left({Token, Sign}, BetaN, Join_fun),
@@ -1018,19 +898,19 @@ left_act_nnode({Token, Sign}, IdNp_node, Join_fun,
         [] ->
             Children_list = eresye_tree_list:children(Join_node,
                                                       Join),
-            {Join1, Agenda1} = pass_tok([{Token, Sign}],
-                                        Children_list, Join, Agenda),
-            left_act({Token, Sign}, T, Join1, Agenda1);
-        Tok_list -> left_act({Token, Sign}, T, Join, Agenda)
+            {Join1, EngineState1} = pass_tok(EngineState0, [{Token, Sign}],
+                                        Children_list, Join),
+            left_act(EngineState1, {Token, Sign}, T, Join1);
+        Tok_list -> left_act(EngineState0, {Token, Sign}, T, Join)
     end.
 
-test_nnode([], _, _, _, Join, Agenda) -> {Join, Agenda};
-test_nnode([Tok | OtherTok], IdNpNode, Join_fun,
-           Join_node, Join, Agenda) ->
-    {Join1, Agenda1} = left_act_nnode(Tok, IdNpNode,
-                                      Join_fun, [Join_node], Join, Agenda),
+test_nnode(EngineState0, [], _, _, _, Join) -> {Join, EngineState0};
+test_nnode(EngineState0, [Tok | OtherTok], IdNpNode, Join_fun,
+           Join_node, Join) ->
+    {Join1, EngineState1} = left_act_nnode(EngineState0, Tok, IdNpNode,
+                                           Join_fun, [Join_node], Join),
     test_nnode(OtherTok, IdNpNode, Join_fun, Join_node,
-               Join1, Agenda1).
+               Join1, EngineState1).
 
 
 %% @doc WME compares with the new all tokens in the beta-memory Parent
@@ -1084,26 +964,23 @@ append(Beta, {Fact, Sign}) ->
                 [], Beta).
 
 %% @doc shares or create a join-node
-make_join_node(J, {new, Tab}, Cond, P, Parent_node,
-               Agenda) ->
+make_join_node(EngineState0, J, {new, Tab}, Cond, P, Parent_node) ->
     Join_fun = evaluate(prepare_fun(Cond, P)),
-    new_join(J, Tab, Join_fun, Parent_node, Agenda);
-make_join_node(J, {old, Tab}, Cond, P, Parent_node,
-               Agenda) ->
+    new_join(EngineState0, J, Tab, Join_fun, Parent_node);
+make_join_node(EngineState0, J, {old, Tab}, Cond, P, Parent_node) ->
     Result = eresye_tree_list:child(Tab, Parent_node, J),
     case Result of
         false ->
             Join_fun = evaluate(prepare_fun(Cond, P)),
-            new_join(J, Tab, Join_fun, Parent_node, Agenda);
-        Node -> {Node, J, Agenda}
+            new_join(EngineState0, J, Tab, Join_fun, Parent_node);
+        Node -> {Node, J, EngineState0}
     end.
 
-new_join(J, Tab, Join_fun, Parent_node, Agenda) ->
+new_join(EngineState0, J, Tab, Join_fun, Parent_node) ->
     Key = {Tab, Join_fun},
     Value = [],
     {Node, J1} = eresye_tree_list:insert(Key, Value,
                                          Parent_node, J),
-    {J2, Agenda1} = update_new_node(Node, Parent_node, J1,
-                                    Agenda),
+    {J2, EngineState1} = update_new_node(EngineState0, Node, Parent_node, J1),
     Node1 = eresye_tree_list:refresh(Node, J2),
-    {Node1, J2, Agenda1}.
+    {Node1, J2, EngineState1}.
