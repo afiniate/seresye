@@ -194,36 +194,42 @@ prepare_match_alpha_fun(Cond) ->
     evaluate(FunString).
 
 get_conds({Module, Func}, Ontology, ClauseID) ->
-    File = lists:concat([Module, '.erl']),
-    case epp:parse_file(File, ["."], []) of
-        {error, OpenError} ->
-            erlang:throw({eresye, {error_parsing_file,
-                                   [{Module, Func}, OpenError]}}),
-            error;
-        {ok, Form} ->
-            Records = get_records(Form, []),
-            case search_fun(Form, Func, Records) of
-                {error, Msg} ->
-                    erlang:throw({eresye, {error_parsing_file,
-                                           [{Module, Func}, Msg]}});
-                {ok, CL} ->
-                    ClauseList = if ClauseID > 0 ->
-                                         [lists:nth(ClauseID, CL)];
-                                    true -> CL
-                                 end,
-                    SolvedClauses = if Ontology == nil -> ClauseList;
-                                       true ->
-                                            eresye_ontology_resolver:resolve_ontology(ClauseList,
-                                                                                      Ontology)
-                                    end,
-                    case read_clause(SolvedClauses, [], Records) of
-                        {error, Msg2} ->
-                            erlang:throw({eresye, {error_parsing_file,
-                                                   clause_issues,
-                                                   [{Module, Func}, Msg2]}}),
-                            error;
-                        CondsList -> CondsList
-                    end
+    case beam_lib:chunks(code:which(Module), [abstract_code]) of
+        {error, beam_lib, {file_error, File, enoent}} ->
+            erlang:throw({eresye,
+                          {unable_to_find_file, Module, File}});
+        {ok, {Module, [{abstract_code,no_abstract_code}]}} ->
+            erlang:throw({eresye,
+                          {no_abstract_code, Module,
+                           "module must be compiled with +debug_info"}});
+        {ok, {Module, [{abstract_code, {raw_abstract_v1, Form}}]}} ->
+            parse_forms(Module, Func, Ontology, ClauseID, Form)
+    end.
+
+parse_forms(Module, Func, Ontology, ClauseID, Form) ->
+    Records = get_records(Form, []),
+    case search_fun(Form, Func, Records) of
+        {error, Reason} ->
+            erlang:throw({eresye, {error_parsing_forms,
+                                   {Module, Func}, Reason}});
+        {ok, CL} ->
+            ClauseList =
+                if ClauseID > 0 ->
+                        [lists:nth(ClauseID, CL)];
+                   true -> CL
+                end,
+            SolvedClauses =
+                if Ontology == nil -> ClauseList;
+                   true ->
+                        eresye_ontology_resolver:resolve_ontology(ClauseList,
+                                                                  Ontology)
+                end,
+            case read_clause(SolvedClauses, [], Records) of
+                {error, Reason} ->
+                    erlang:throw({eresye, {unable_to_read_clauses,
+                                           {Module, Func, Reason}}});
+                CondsList ->
+                    CondsList
             end
     end.
 
