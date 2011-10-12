@@ -1,0 +1,29 @@
+%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%
+%%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
+%%% All rights reserved.
+%%%
+%%% You may use this file under the terms of the BSD License. See the
+%%% license distributed with this project or
+%%% http://www.opensource.org/licenses/bsd-license.php%
+class (journal) ->
+ { title = [string, mandator, nodefault],
+   main_topic = [string, mandator, nodefault],
+   publisher = [string, mandatory, nodefault],
+   type = [string, mandatory, nodefault],
+   impact_factor = [number, mandatory, nodefault] };
+
+class ('international-journal') -> is_a (journal),
+ { type = [string, mandatory, default(international)] };
+
+class ('national-journal') -> is_a (journal),
+ { type = [string, mandatory, default(national)] };
+
+class ('IEEE-journal') -> is_a ('international-journal'),
+ { publisher = [string, mandatory, default('IEEE')] };
+
+class ('ACM-journal') -> is_a ('international-journal'),
+ { publisher = [string, mandatory, default('ACM')] };
+
+class ('italian-journal') -> is_a ('national-journal').
+
