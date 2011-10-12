@@ -6,7 +6,7 @@
 %%% You may use this file under the terms of the BSD License. See the
 %%% license distributed with this project or
 %%% http://www.opensource.org/licenses/bsd-license.php
--module(eresye).
+-module(eresye_engine).
 
 -ifdef(debug).
 -define(LOG(F, X), io:format(F, X)).
