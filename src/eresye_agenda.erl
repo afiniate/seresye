@@ -8,15 +8,15 @@
 %%% http://www.opensource.org/licenses/bsd-license.php
 -module(eresye_agenda).
 
--export([new/1, addActivation/3, addActivation/4,
-         breadthOrder/2, clearAgenda/1, deleteActivation/2,
-         deleteRule/2, depthOrder/2, fifoOrder/2,
-         getActivation/2, getActivationFromName/2,
-         getActivationSalience/2, getFirstActivation/1,
-         getNumberOfActivations/1, getRulesFired/1,
-         getStrategy/1, popRule/1,
-         setActivationSalience/3, setRuleSalience/3,
-         setStrategy/2]).
+-export([new/1, add_activation/3, add_activation/4,
+         breadth_order/2, clear_agenda/1, delete_activation/2,
+         delete_rule/2, depth_order/2, fifo_order/2,
+         get_activation/2, get_activation_from_name/2,
+         get_activation_salience/2, get_first_activation/1,
+         get_number_of_activations/1, get_rules_fired/1,
+         get_strategy/1, pop_rule/1,
+         set_activation_salience/3, set_rule_salience/3,
+         set_strategy/2]).
 
 -include("internal.hrl").
 
@@ -34,21 +34,21 @@ new(Eresye) ->
                                  pending_actions=[],
                                  id=0}}.
 
-addActivation(Agenda, Rule, Args) ->
-    addActivation(Agenda, Rule, Args, 0).
+add_activation(Agenda, Rule, Args) ->
+    add_activation(Agenda, Rule, Args, 0).
 
-addActivation(EngineState0 = #eresye{agenda=
-                                         Agenda0 = #agenda{strategy=Strategy,
-                                                           rule_list=RuleList0,
-                                                           id=Id}},
-              Rule, Args, Salience) ->
+add_activation(EngineState0 = #eresye{agenda=
+                                          Agenda0 = #agenda{strategy=Strategy,
+                                                            rule_list=RuleList0,
+                                                            id=Id}},
+               Rule, Args, Salience) ->
     RuleList1 = case Strategy of
                     depth ->
-                        depthAdd(RuleList0, Rule, Args, Salience, Id);
+                        depth_add(RuleList0, Rule, Args, Salience, Id);
                     breadth ->
-                        breadthAdd(RuleList0, Rule, Args, Salience, Id);
+                        breadth_add(RuleList0, Rule, Args, Salience, Id);
                     fifo ->
-                        fifoAdd(RuleList0, Rule, Args, Salience, Id)
+                        fifo_add(RuleList0, Rule, Args, Salience, Id)
                   end,
     Agenda1 = Agenda0#agenda{rule_list=RuleList1, id=Id + 1},
 
@@ -57,44 +57,44 @@ addActivation(EngineState0 = #eresye{agenda=
 
 %% @doc Remove all activation from Agenda,
 %% returns an empty agenda with same past strategy
-clearAgenda(EngineState = #eresye{agenda=Agenda0}) ->
+clear_agenda(EngineState = #eresye{agenda=Agenda0}) ->
     EngineState#eresye{agenda=Agenda0#agenda{rule_list=[], id=0}}.
 
-getStrategy(#eresye{agenda=#agenda{strategy=Strategy}}) ->
+get_strategy(#eresye{agenda=#agenda{strategy=Strategy}}) ->
     Strategy.
 
-setStrategy(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}}, NewStrategy) ->
+set_strategy(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}}, NewStrategy) ->
     RuleList1 = case NewStrategy of
                     depth ->
-                        lists:sort(fun depthOrder/2, RuleList0);
+                        lists:sort(fun depth_order/2, RuleList0);
                     breadth ->
-                        lists:sort(fun breadthOrder/2,
+                        lists:sort(fun breadth_order/2,
                                    RuleList0);
                     fifo ->
-                        lists:sort(fun fifoOrder/2, RuleList0);
+                        lists:sort(fun fifo_order/2, RuleList0);
                     _ ->
                         erlang:throw({eresye, {invalid_strategy, NewStrategy}})
 
                 end,
     EngineState#eresye{agenda=Agenda0#agenda{strategy=NewStrategy, rule_list=RuleList1}}.
 
-getRulesFired(#eresye{agenda=#agenda{rules_fired=Fired}}) ->
+get_rules_fired(#eresye{agenda=#agenda{rules_fired=Fired}}) ->
     Fired.
 
 %% @doc Remove activation with id='Id' or
 %% all activation whose id is in the list passed as argument
-deleteActivation(EngineState, []) -> EngineState;
-deleteActivation(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}},
+delete_activation(EngineState, []) -> EngineState;
+delete_activation(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}},
                  Id)
   when not is_list(Id) ->
     EngineState#eresye{agenda=Agenda0#agenda{rule_list=lists:keydelete(Id, 4, RuleList0)}};
-deleteActivation(EngineState, [Id | OtherId]) ->
-    EngineState1 = deleteActivation(EngineState, Id),
-    deleteActivation(EngineState1, OtherId).
+delete_activation(EngineState, [Id | OtherId]) ->
+    EngineState1 = delete_activation(EngineState, Id),
+    delete_activation(EngineState1, OtherId).
 
 %% @doc Remove all activation associated with rule 'Rule' from the agenda,
 %% returns the modified agenda
-deleteRule(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}}, Rule) ->
+delete_rule(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}}, Rule) ->
     ActList = proplists:lookup_all(Rule, RuleList0),
     RuleList1 = lists:foldl(fun (X, R1) ->
                                     lists:delete(X, R1)
@@ -104,7 +104,7 @@ deleteRule(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}},
 
 %% @doc Returns the Id of activation associated to rule 'Rule' and
 %% arguments 'Args', false if it not present
-getActivation(#eresye{agenda=#agenda{rule_list=RuleList0}}, {Rule, Args}) ->
+get_activation(#eresye{agenda=#agenda{rule_list=RuleList0}}, {Rule, Args}) ->
     ActList = proplists:lookup_all(Rule, RuleList0),
     case lists:keysearch(Args, 2, ActList) of
         {value, {_, _, _, Id}} -> Id;
@@ -113,7 +113,7 @@ getActivation(#eresye{agenda=#agenda{rule_list=RuleList0}}, {Rule, Args}) ->
 
 %% @doc Returns the Id of first activation associated to rule 'Rule',
 %% false if 'Rule' is not present in the agenda
-getActivationFromName(#eresye{agenda=#agenda{rule_list=RuleList0}}, Rule) ->
+get_activation_from_name(#eresye{agenda=#agenda{rule_list=RuleList0}}, Rule) ->
     case lists:keysearch(Rule, 1, RuleList0) of
         {value, {_, _, _, Id}} -> Id;
         false -> false
@@ -121,12 +121,12 @@ getActivationFromName(#eresye{agenda=#agenda{rule_list=RuleList0}}, Rule) ->
 
 %% @doc Return the Id associated to first activation in the agenda
 %% false if agenda is empty
-getFirstActivation(#eresye{agenda=#agenda{rule_list=[First | _]}}) ->
+get_first_activation(#eresye{agenda=#agenda{rule_list=[First | _]}}) ->
     element(4, First).
 
 %% @doc Return the salience value of activation with id='Id'
 %% false if Id is not present in the agenda
-getActivationSalience(#eresye{agenda=#agenda{rule_list=RuleList0, id=NextId}}, Id) ->
+get_activation_salience(#eresye{agenda=#agenda{rule_list=RuleList0, id=NextId}}, Id) ->
     case NextId < Id of
         true -> false;
         false ->
@@ -138,9 +138,9 @@ getActivationSalience(#eresye{agenda=#agenda{rule_list=RuleList0, id=NextId}}, I
 
 %% @doc Sets the salience value of activation with id='Id',
 %% returns the modified agenda
-setActivationSalience(EngineState =
-                          #eresye{agenda=Agenda0 =
-                                      #agenda{rule_list=RuleList0, strategy=Strategy}}, Id, NewSalience)
+set_activation_salience(EngineState =
+                            #eresye{agenda=Agenda0 =
+                                        #agenda{rule_list=RuleList0, strategy=Strategy}}, Id, NewSalience)
   when is_number(NewSalience) and not is_list(Id) ->
     RuleList2 =
         case lists:keysearch(Id, 4, RuleList0) of
@@ -152,22 +152,22 @@ setActivationSalience(EngineState =
                 RuleList0
         end,
     EngineState#eresye{agenda=Agenda0#agenda{rule_list=RuleList2}};
-setActivationSalience(_EngineState, Id, NewSalience)
+set_activation_salience(_EngineState, Id, NewSalience)
   when not is_list(Id) ->
     erlang:throw({eresye, {invalid_salience, NewSalience}});
-setActivationSalience(EngineState0, [Id | OtherId],
+set_activation_salience(EngineState0, [Id | OtherId],
                         NewSalience) ->
-    EngineState1 = setActivationSalience(EngineState0, Id, NewSalience),
-    setActivationSalience(EngineState1, OtherId, NewSalience).
+    EngineState1 = set_activation_salience(EngineState0, Id, NewSalience),
+    set_activation_salience(EngineState1, OtherId, NewSalience).
 
 %% @doc Sets the salience value of all activations associated to rule 'Rule',
 %% returns the modified agenda
-setRuleSalience(EngineState0 =
+set_rule_salience(EngineState0 =
                     #eresye{agenda=#agenda{rule_list=RuleList0}}, Rule, NewSalience) ->
     ActList = proplists:lookup_all(Rule, RuleList0),
     IdList = [Id || {_, _, _, Id} <- ActList],
-    setActivationSalience(EngineState0, IdList,
-                          NewSalience).
+    set_activation_salience(EngineState0, IdList,
+                            NewSalience).
 
 
 %%====================================================================
@@ -189,7 +189,7 @@ after_activation_schedule(EngineState0 =
         if
             ExecState0 == active -> {ExecState0, RuleList0, PA0, RF0};
             true ->
-                {RuleToExecute, RL} = popRule(RuleList0),
+                {RuleToExecute, RL} = pop_rule(RuleList0),
                 if
                     RuleToExecute == false ->
                         {nil, RL, PA0, RF0};
@@ -209,7 +209,7 @@ after_execution_schedule(EngineState0 =
                                          #agenda{rule_list=RuleList0,
                                                  pending_actions=PA0,
                                                  rules_fired=RF0}}) ->
-  {RuleToExecute, RL} = popRule(RuleList0),
+  {RuleToExecute, RL} = pop_rule(RuleList0),
   {ExecState1, RuleList1, PA1, RF1} =
     if
       RuleToExecute == false -> {nil, RL, PA0, RF0};
@@ -225,68 +225,68 @@ after_execution_schedule(EngineState0 =
 
 %% @doc Remove the first activation, returns the rule,
 %% function arguments and the modified agenda
-popRule([]) -> {false, []};
-popRule([Activation | NewRuleList]) ->
+pop_rule([]) -> {false, []};
+pop_rule([Activation | NewRuleList]) ->
     {Activation, NewRuleList}.
 
-depthAdd(RuleList, Rule, Args, Salience, Id) ->
+depth_add(RuleList, Rule, Args, Salience, Id) ->
     {L1, L2} = lists:splitwith(fun ({_, _, S, _}) ->
                                        S > Salience
                                end,
                                RuleList),
     L1 ++ [{Rule, Args, Salience, Id} | L2].
 
-breadthAdd(RuleList, Rule, Args, Salience, Id) ->
+breadth_add(RuleList, Rule, Args, Salience, Id) ->
     {L1, L2} = lists:splitwith(fun ({_, _, S, _}) ->
                                        S >= Salience
                                end,
                                RuleList),
     L1 ++ [{Rule, Args, Salience, Id} | L2].
 
-fifoAdd(RuleList, Rule, Args, Salience, Id) ->
+fifo_add(RuleList, Rule, Args, Salience, Id) ->
     RuleList ++ [{Rule, Args, Salience, Id}].
 
-getNumberOfActivations({_Strategy, RuleList, _NextId}) ->
+get_number_of_activations({_Strategy, RuleList, _NextId}) ->
     length(RuleList).
 
 order(ActionList, Strategy) ->
     case Strategy of
         breadth ->
-            lists:sort({agenda, breadthOrder}, ActionList);
-        depth -> lists:sort({agenda, depthOrder}, ActionList);
-        fifo -> lists:sort({agenda, fifoOrder}, ActionList);
+            lists:sort(fun breadth_order/2, ActionList);
+        depth -> lists:sort(fun depth_order/2, ActionList);
+        fifo -> lists:sort(fun fifo_order/2, ActionList);
         _Other -> ActionList
     end.
 
 %% @doc define when an Act1 comes before Act2 in breadth strategy
-breadthOrder(Act1, Act2)
+breadth_order(Act1, Act2)
   when element(3, Act1) > element(3, Act2) ->
     true;
-breadthOrder(Act1, Act2)
+breadth_order(Act1, Act2)
   when element(3, Act1) < element(3, Act2) ->
     false;
-breadthOrder(Act1, Act2)
+breadth_order(Act1, Act2)
   when element(4, Act1) > element(4, Act2) ->
     false;
-breadthOrder(_Act1, _Act2) -> true.
+breadth_order(_Act1, _Act2) -> true.
 
 %% @doc define when an Act1 comes before Act2 in depth strategy
-depthOrder(Act1, Act2)
+depth_order(Act1, Act2)
   when element(3, Act1) > element(3, Act2) ->
     true;
-depthOrder(Act1, Act2)
+depth_order(Act1, Act2)
   when element(3, Act1) < element(3, Act2) ->
     false;
-depthOrder(Act1, Act2)
+depth_order(Act1, Act2)
   when element(4, Act1) < element(4, Act2) ->
     false;
-depthOrder(_Act1, _Act2) -> true.
+depth_order(_Act1, _Act2) -> true.
 
 %% @doc define when an Act1 comes before Act2 in fifo strategy
-fifoOrder(Act1, Act2)
+fifo_order(Act1, Act2)
   when element(4, Act1) > element(4, Act2) ->
     false;
-fifoOrder(_Act1, _Act2) -> true.
+fifo_order(_Act1, _Act2) -> true.
 
 %%====================================================================
 %% Executor functions

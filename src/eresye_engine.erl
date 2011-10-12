@@ -93,35 +93,35 @@ add_rule(EngineState, {Module, Fun}, Salience) ->
 
 add_rule(EngineState0, Fun, ClauseID, Salience) ->
     Ontology = get_ontology(EngineState0),
-      case get_conds(Fun, Ontology, ClauseID) of
-          error -> erlang:throw({eresye, {error_extracting_conditions, Fun}});
-          CondsList ->
-              execute_pending(
-                lists:foldl(fun (X, EngineState1) ->
-                                    case X of
-                                        {error, Msg} ->
-                                            erlang:throw({eresye, {error_adding_rule,
-                                                                   [Fun, Msg]}});
-                                        {PConds, NConds} ->
-                                            ?LOG(">> PConds=~p~n", [PConds]),
-                                            ?LOG(">> NConds=~p~n", [NConds]),
-                                            add_rule__(EngineState1,
-                                                       {Fun, Salience},
-                                                       {PConds, NConds})
-                                    end
-                            end,
-                            EngineState0,
-                            CondsList))
-      end.
+    case get_conds(Fun, Ontology, ClauseID) of
+        error -> erlang:throw({eresye, {error_extracting_conditions, Fun}});
+        CondsList ->
+            execute_pending(
+              lists:foldl(fun (X, EngineState1) ->
+                                  case X of
+                                      {error, Msg} ->
+                                          erlang:throw({eresye, {error_adding_rule,
+                                                                 [Fun, Msg]}});
+                                      {PConds, NConds} ->
+                                          ?LOG(">> PConds=~p~n", [PConds]),
+                                          ?LOG(">> NConds=~p~n", [NConds]),
+                                          add_rule__(EngineState1,
+                                                     {Fun, Salience},
+                                                     {PConds, NConds})
+                                  end
+                          end,
+                          EngineState0,
+                          CondsList))
+    end.
 
 remove_rule(EngineState0, Rule) ->
-    execute_pending(remove_prod(eresye_agenda:deleteRule(EngineState0, Rule), Rule)).
+    execute_pending(remove_prod(eresye_agenda:delete_rule(EngineState0, Rule), Rule)).
 
 get_ontology(#eresye{ontology=Ontology}) ->
     Ontology.
 
 get_rules_fired(EngineState) ->
-    eresye_agenda:getRulesFired(EngineState).
+    eresye_agenda:get_rules_fired(EngineState).
 
 get_kb(#eresye{kb=Kb}) ->
     Kb.
@@ -409,21 +409,21 @@ make_struct(EngineState0 = #eresye{join=Join}, Rule, [], _P, Cur_node, nil) ->
     %% create production node
     Key = {p_node, Rule},
     {Join2, EngineState1} = case eresye_tree_list:child(Key, Cur_node, Join) of
-                           false ->
-                               Value = [],
-                               {Node, Join1} = eresye_tree_list:insert(Key, Value,
-                                                                       Cur_node, Join),
-                               update_new_node(EngineState0, Node, Cur_node,
-                                               Join1);
-                           Node ->
-                               {Fun, _Salience} = Rule,
-                               Key1 = element(1, Node),
-                               Sal = element(2, element(2, Key1)),
-                               io:format(">> Rule (~w) already present ~n", [Fun]),
-                               io:format(">> with salience = ~w~n", [Sal]),
-                               io:format(">> To change salience use 'set_salience()'.~n"),
-                               {Join, EngineState0}
-                       end,
+                                false ->
+                                    Value = [],
+                                    {Node, Join1} = eresye_tree_list:insert(Key, Value,
+                                                                            Cur_node, Join),
+                                    update_new_node(EngineState0, Node, Cur_node,
+                                                    Join1);
+                                Node ->
+                                    {Fun, _Salience} = Rule,
+                                    Key1 = element(1, Node),
+                                    Sal = element(2, element(2, Key1)),
+                                    io:format(">> Rule (~w) already present ~n", [Fun]),
+                                    io:format(">> with salience = ~w~n", [Sal]),
+                                    io:format(">> To change salience use 'set_salience()'.~n"),
+                                    {Join, EngineState0}
+                            end,
     EngineState1#eresye{join=Join2};
 make_struct(EngineState0 = #eresye{join=Join}, Rule, [], P, Cur_node, {Nod, NConds}) ->
     Id = eresye_tree_list:get_id(Nod),
@@ -760,14 +760,14 @@ signal(EngineState0 = #eresye{pending_actions=PAList}, Token, Sign, {Fun, Salien
         case Sign of
             plus ->
                 fun(EngineState1) ->
-                        eresye_agenda:addActivation(EngineState1, Fun,
-                                                    Token, Salience)
+                        eresye_agenda:add_activation(EngineState1, Fun,
+                                                     Token, Salience)
                 end;
             minus ->
-                ActivationId = eresye_agenda:getActivation(EngineState0,
-                                                           {Fun, Token}),
+                ActivationId = eresye_agenda:get_activation(EngineState0,
+                                                            {Fun, Token}),
                 fun(EngineState1) ->
-                        eresye_agenda:deleteActivation(EngineState1, ActivationId)
+                        eresye_agenda:delete_activation(EngineState1, ActivationId)
                 end
         end,
     EngineState0#eresye{pending_actions=PAList ++ [NewPA]}.
@@ -881,7 +881,7 @@ left_act(EngineState0, {Token, Sign}, [Join_node | T], Join) ->
             Children_list = eresye_tree_list:children(Join_node,
                                                       Join1),
             {Join2, EngineState1} = pass_tok(EngineState0, Tok_list, Children_list,
-                                        Join1),
+                                             Join1),
             left_act(EngineState1, {Token, Sign}, T, Join2)
     end.
 
@@ -905,7 +905,7 @@ left_act_nnode(EngineState0, {Token, Sign}, IdNp_node, Join_fun,
             Children_list = eresye_tree_list:children(Join_node,
                                                       Join),
             {Join1, EngineState1} = pass_tok(EngineState0, [{Token, Sign}],
-                                        Children_list, Join),
+                                             Children_list, Join),
             left_act(EngineState1, {Token, Sign}, T, Join1);
         Tok_list -> left_act(EngineState0, {Token, Sign}, T, Join)
     end.

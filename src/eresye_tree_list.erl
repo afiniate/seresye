@@ -17,28 +17,28 @@
 
 new() -> [{root, nil, [], 0, 1}].
 
-insert(Key, Value, Parent_node, List) ->
-    {Parent_key, Parent_value, Children, Parent, Pos} =
-        Parent_node,
+insert(Key, Value, ParentNode, List) ->
+    {ParentKey, ParentValue, Children, Parent, Pos} =
+        ParentNode,
     Next = length(List) + 1,
     Node = {Key, Value, [], Pos, Next},
     List1 = List ++ [Node],
     Children1 = Children ++ [Next],
-    Parent_node1 = {Parent_key, Parent_value, Children1,
+    ParentNode1 = {ParentKey, ParentValue, Children1,
                     Parent, Pos},
-    L1 = lists:keyreplace(Pos, 5, List1, Parent_node1),
+    L1 = lists:keyreplace(Pos, 5, List1, ParentNode1),
     {Node, L1}.
 
 %% @doc Parent_node search for children of a node whose key (tuple) is equal to Key
 %% if Key is not 'look for the node a tuple whose first element' {Key, _}
 %% Returns the node itself or false if there is no tuple
-child(Key, Parent_node, List) ->
-    Children = element(3, Parent_node),
+child(Key, ParentNode, List) ->
+    Children = element(3, ParentNode),
     search(Key, List, Children).
 
 search(_Key, _List, []) -> false;
-search(Key, List, [Nth_element | T]) ->
-    Elem = lists:nth(Nth_element, List),
+search(Key, List, [NthElement | T]) ->
+    Elem = lists:nth(NthElement, List),
     Res = search(Key, Elem),
     case Res of
         true -> Elem;
@@ -78,8 +78,8 @@ is_present(Tab, [Node | T]) ->
         {'EXIT',
          {badarg, _}} ->                 % throws an exception
             is_present(Tab, T);
-        Tab_elem ->
-            case test(Tab_elem, Tab) of
+        TabElem ->
+            case test(TabElem, Tab) of
                 true -> true;
                 false -> is_present(Tab, T)
             end
@@ -92,11 +92,11 @@ is_present(Tab, [Node | T]) ->
 %% Key =% {p_node, Fun}
 %% Key =% {p_node, Fun {, _}}
 lookup_all(Key, [_Root | L]) ->
-    lists:foldl(fun (Elem, Result_list) ->
+    lists:foldl(fun (Elem, ResultList) ->
                         case search(Key, Elem) of
                             true ->
-                                [Elem | Result_list];
-                            false -> Result_list
+                                [Elem | ResultList];
+                            false -> ResultList
                         end
                 end,
                 [], L).
@@ -118,9 +118,9 @@ children(Join_node, List) ->
                 end,
                 [], Pos_list).
 
-update_node(Join_node, List) ->
-    Pos = element(5, Join_node),
-    lists:keyreplace(Pos, 5, List, Join_node).
+update_node(JoinNode, List) ->
+    Pos = element(5, JoinNode),
+    lists:keyreplace(Pos, 5, List, JoinNode).
 
 get_node(Id, List) -> lists:nth(Id, List).
 
@@ -134,15 +134,15 @@ refresh(Node, List) ->
 
 get_beta(Node) -> element(2, Node).
 
-update_beta(Beta_new, {Key, _Beta_old, Children, Parent, Pos}, List) ->
-    New_node = {Key, Beta_new, Children, Parent, Pos},
-    lists:keyreplace(Pos, 5, List, New_node).
+update_beta(BetaNew, {Key, _BetaOld, Children, Parent, Pos}, List) ->
+    NewNode = {Key, BetaNew, Children, Parent, Pos},
+    lists:keyreplace(Pos, 5, List, NewNode).
 
 get_key(Node) -> element(1, Node).
 
 update_key(NewKey, {_Key, Beta, Children, Parent, Pos}, List) ->
-    New_node = {NewKey, Beta, Children, Parent, Pos},
-    lists:keyreplace(Pos, 5, List, New_node).
+    NewNode = {NewKey, Beta, Children, Parent, Pos},
+    lists:keyreplace(Pos, 5, List, NewNode).
 
 get_parent(Node, List) ->
     Parent = element(4, Node), lists:nth(Parent, List).
@@ -154,48 +154,48 @@ have_child(Node) ->
         _Other -> true
     end.
 
-remove_child(Child, Parent_Node, List) ->
+remove_child(Child, ParentNode, List) ->
     ChildId = element(5, Child),
-    {Key, Value, Children, Parent, Pos} = Parent_Node,
-    New_node = {Key, Value, Children -- [ChildId], Parent,
+    {Key, Value, Children, Parent, Pos} = ParentNode,
+    NewNode = {Key, Value, Children -- [ChildId], Parent,
                 Pos},
-    lists:keyreplace(Pos, 5, List, New_node).
+    lists:keyreplace(Pos, 5, List, NewNode).
 
-set_child(Child, Parent_node, List) ->
-    {Key, Value, Children, Parent, Pos} = Parent_node,
+set_child(Child, ParentNode, List) ->
+    {Key, Value, Children, Parent, Pos} = ParentNode,
     ChildId = element(5, Child),
-    New_node = {Key, Value, Children ++ [ChildId], Parent,
+    NewNode = {Key, Value, Children ++ [ChildId], Parent,
                 Pos},
-    lists:keyreplace(Pos, 5, List, New_node).
+    lists:keyreplace(Pos, 5, List, NewNode).
 
 remove_node(Node, List) ->
     Pos = element(5, Node),
-    Parent_node = get_parent(Node, List),
-    List1 = remove_child(Node, Parent_node, List),
+    ParentNode = get_parent(Node, List),
+    List1 = remove_child(Node, ParentNode, List),
     Head = lists:sublist(List1, Pos - 1),
     Tail = lists:nthtail(Pos, List1),
     update_list(Head, Tail, Pos).
 
 update_list(List, [], _N) -> List;
 update_list(List, [Node | T], N) ->
-    New_pos = length(List) + 1,
+    NewPos = length(List) + 1,
     {Key, Value, Children, Parent, Pos} = Node,
-    {New_parent, List1} =
+    {NewParent, List1} =
         case Parent > N of
             true ->
                 {Parent - 1, List};
             false ->
-                New_parent0 = Parent,
+                NewParent0 = Parent,
                 {Key1, Value1, Children1, Parent1, Pos1} =
-                    lists:nth(New_parent0, List),
-                Parent_node = {Key1, Value1,
-                               (Children1 -- [Pos]) ++ [New_pos], Parent1, Pos1},
-                {New_parent0, lists:keyreplace(Parent, 5, List, Parent_node)}
+                    lists:nth(NewParent0, List),
+                ParentNode = {Key1, Value1,
+                              (Children1 -- [Pos]) ++ [NewPos], Parent1, Pos1},
+                {NewParent0, lists:keyreplace(Parent, 5, List, ParentNode)}
         end,
-    New_children = [update_list_1(V1, N) || V1 <- Children],
-    New_node = {Key, Value, New_children, New_parent,
-                New_pos},
-    List2 = List1 ++ [New_node],
+    NewChildren = [update_list_1(V1, N) || V1 <- Children],
+    NewNode = {Key, Value, NewChildren, NewParent,
+               NewPos},
+    List2 = List1 ++ [NewNode],
     update_list(List2, T, N).
 
 update_list_1(X, N) ->
