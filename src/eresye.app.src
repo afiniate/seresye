@@ -7,4 +7,5 @@
   {vsn, "2.0.0"},
   {modules, []},
   {registered, []},
-  {applications, [kernel, stdlib]}]}.
+  {applications, [kernel, stdlib]},
+  {mod, {eresye_app, []}}]}.

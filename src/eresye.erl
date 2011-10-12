@@ -1,0 +1,213 @@
+%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%
+%%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
+%%% All rights reserved.
+%%%
+%%% You may use this file under the terms of the BSD License. See the
+%%% license distributed with this project or
+%%% http://www.opensource.org/licenses/bsd-license.php
+-module(eresye).
+
+%%====================================================================
+%% External exports
+%%====================================================================
+
+-export([start/1, start/3, stop/1, get_engine/1,
+         add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1,
+         get_ontology/1, get_rules_fired/1, get_client_state/1,
+         set_client_state/2, query_kb/2, remove_rule/2, retract/2]).
+
+%% gen_server callbacks
+-export([start_link/1, start_link/3, init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+%%====================================================================
+%% External functions
+%%====================================================================
+start(Name) ->
+    eresye_sup:start_engine(Name).
+
+start(Name, Ontology, ClientState) ->
+    eresye_sup:start_engine(Name, Ontology, ClientState).
+
+set_client_state(Name, NewState) ->
+    gen_server:cast(Name, {set_client_state, NewState}).
+
+get_client_state(Name) ->
+    gen_server:call(Name, get_client_state).
+
+stop (EngineName) ->
+  gen_server:call(EngineName, {stop}).
+
+get_engine(EngineName) ->
+    gen_server:call(EngineName, get_engine).
+
+%% @doc Insert a fact in the KB.
+%% It also checks if the fact verifies any condition,
+%% if this is the case the fact is also inserted in the alpha-memory
+assert(Name, Facts) ->
+    gen_server:call(Name, {assert, Facts}).
+
+%% @doc removes a 'fact' in the Knowledge Base and if something occurs
+%% Condition is also deleted from the corresponding alpha-memory
+retract(Name, Facts) ->
+    gen_server:call(Name, {retract, Facts}).
+
+add_rules(Name, RuleList)
+  when is_list(RuleList) ->
+    gen_server:call(Name, {add_rules, RuleList}).
+
+add_rule(Name, Fun) ->
+    gen_server:call(Name, {add_rule, Fun}).
+
+add_rule(Name, Rule, Salience) ->
+    gen_server:call(Name, {add_rule, Rule, Salience}).
+
+remove_rule(Name, Rule) ->
+    gen_server:call(Name, {remove_rule, Rule}).
+
+get_ontology(Name) ->
+    gen_server:call(Name, get_ontology).
+
+get_rules_fired(Name) ->
+    gen_server:call(Name, get_rules_fired).
+
+get_kb(Name) ->
+    gen_server:call(Name, get_kb).
+
+query_kb(Name, Pattern) ->
+    gen_server:call(Name, Pattern).
+
+
+%%%===================================================================
+%%% gen_server callbacks
+%%%===================================================================
+start_link(Name) when is_atom(Name) ->
+    gen_server:start_link({local, Name}, ?MODULE, [], []).
+
+start_link(Ontology, ClientState, Name) when is_atom(Name) ->
+    gen_server:start_link({local, Name}, ?MODULE, [Ontology, ClientState], []).
+
+
+init([]) ->
+    {ok, eresye_engine:new()};
+init([Ontology, ClientState]) ->
+    {ok, eresye_engine:new(Ontology, ClientState)}.
+
+
+handle_call(get_client_state, _From, State) ->
+    Reply =
+        try
+            {ok, eresye_engine:get_client_state(State)}
+        catch
+            Type:Reason ->
+                {error, {Type, Reason}}
+        end,
+    {reply, Reply, State};
+handle_call(stop, _From, State) ->
+    {stop, normal, State};
+handle_call({assert, Facts}, _From, State0) ->
+    {Reply, State1} =
+        try
+            {ok, eresye_engine:assert(State0, Facts)}
+        catch
+            Type:Reason ->
+                {{error, {Type, Reason}}, State0}
+        end,
+    {reply, Reply, State1};
+handle_call({retract, Facts}, _From, State0) ->
+    {Reply, State1} =
+        try
+            {ok, eresye_engine:retract(State0, Facts)}
+        catch
+            Type:Reason ->
+                {{error, {Type, Reason}}, State0}
+        end,
+    {reply, Reply, State1};
+handle_call({add_rules, Rules}, _From, State0) ->
+    {Reply, State1} =
+        try
+            {ok, eresye_engine:add_rules(State0, Rules)}
+        catch
+            Type:Reason ->
+                {{error, {Type, Reason}}, State0}
+        end,
+    {reply, Reply, State1};
+handle_call({add_rule, Rule}, _From, State0) ->
+    {Reply, State1} =
+        try
+            {ok, eresye_engine:add_rule(State0, Rule)}
+        catch
+            Type:Reason ->
+                {{error, {Type, Reason}}, State0}
+        end,
+    {reply, Reply, State1};
+handle_call({add_rule, Rule, Salience}, _From, State0) ->
+    {Reply, State1} =
+        try
+            {ok, eresye_engine:add_rule(State0, Rule, Salience)}
+        catch
+            Type:Reason ->
+                {{error, {Type, Reason}}, State0}
+        end,
+    {reply, Reply, State1};
+handle_call({remove_rule, Rule}, _From, State0) ->
+    {Reply, State1} =
+        try
+            {ok, eresye_engine:remove_rule(State0, Rule)}
+        catch
+            Type:Reason ->
+                {{error, {Type, Reason}}, State0}
+        end,
+    {reply, Reply, State1};
+handle_call(get_ontology, _From, State0) ->
+    Reply =
+        try
+            eresye_engine:get_ontology(State0)
+        catch
+            Type:Reason ->
+                {error, {Type, Reason}}
+        end,
+    {reply, Reply, State0};
+handle_call(get_rules_fired, _From, State0) ->
+    Reply =
+        try
+            eresye_engine:get_rules_fired(State0)
+        catch
+            Type:Reason ->
+                {error, {Type, Reason}}
+        end,
+    {reply, Reply, State0};
+handle_call(get_engine, _From, State0) ->
+    {reply, State0, State0};
+handle_call(get_kb, _From, State0) ->
+    Reply =
+        try
+            eresye_engine:get_kb(State0)
+        catch
+            Type:Reason ->
+                {error, {Type, Reason}}
+        end,
+    {reply, Reply, State0};
+handle_call(query_kb, _From, State0) ->
+    Reply =
+        try
+            eresye_engine:query_kb(State0)
+        catch
+            Type:Reason ->
+                {error, {Type, Reason}}
+        end,
+    {reply, Reply, State0}.
+
+handle_cast({set_client_state, CS}, State) ->
+    {noreply, eresye_engine:set_client_state(State, CS)}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+terminate(_Reason, _State) ->
+    ok.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
