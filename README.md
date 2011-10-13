@@ -4,12 +4,8 @@ ERESYE - ERlang Expert SYstem Engine
 Introduction
 ------------
 
-This article describe how to write a simple Artificial Intelligence
-application with Erlang, by using a *rule production system*.
-
-To reach this objective, we will exploit the **ERESYE** tool, an
-Erlang Inference Engine that allows rule-based systems to be written
-directly in Erlang.
+ERESYE is a Rete based rules engine written in Erlang. In the
+following article we will describe how to use the system.
 
 As it is widely known, a rule-based system is composed by a
 **knowledge base**, which stores a set of *facts* representing the
@@ -226,6 +222,7 @@ After writing the rules, we need to:
 We do this in the function *start* below:
 
     start () ->
+      application:start(eresye) % Only if it is not already started
       eresye:start (relatives),
       lists:foreach (fun (X) ->
                          eresye:add_rule (relatives, {?MODULE, X})
@@ -320,6 +317,7 @@ The final complete code of our AI application is thus the following:
       eresye:assert (Engine, {grandmother, X, Z}).
 
     start () ->
+      application:start(eresye),
       eresye:start (relatives),
       lists:foreach (fun (X) ->
                          eresye:add_rule (relatives, {?MODULE, X})
