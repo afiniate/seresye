@@ -43,6 +43,12 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-rules([shore_1_move,
+        shore_2_move,
+        {cannibals_eat_missionaries, 10},
+        {circular_path, 10},
+        {recognize_solution, 10}]).
+
 for (Min, Max) when Min > Max -> [];
 for (Min, Max) -> lists:seq (Min, Max).
 
@@ -164,15 +170,8 @@ recognize_solution (Engine0,
 
 rules_test() ->
     Engine0 = eresye_engine:new(),
-    Engine2 =
-        lists:foldl(fun({Rule, Salience}, Engine1) ->
-                            eresye_engine:add_rule (Engine1, Rule, Salience)
-                    end, Engine0,
-                    [{{?MODULE, shore_1_move}, 0},
-                     {{?MODULE, shore_2_move}, 0},
-                     {{?MODULE, cannibals_eat_missionaries}, 10},
-                     {{?MODULE, circular_path}, 10},
-                     {{?MODULE, recognize_solution}, 10}]),
+    Engine2 = eresye_engine:add_rules(Engine0, ?MODULE),
+
     Engine3 =
         eresye_engine:assert (Engine2,
                        #status {'search-depth' =  1,

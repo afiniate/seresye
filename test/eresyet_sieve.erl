@@ -11,6 +11,9 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-rules([{remove_multiple, 2},
+        {final_rule, 1}]).
+
 remove_multiple (Engine, {X}, {Y}) when ((X rem Y) == 0) and (X =/= Y)->
     eresye_engine:retract (Engine, {X}).
 
@@ -23,9 +26,8 @@ run_sieve() ->
     Start = now(),
     Engine1 = eresye_engine:assert (eresye_engine:new(),
                              [{X} || X <- lists:seq (2, 100)]),
-    Engine2 = eresye_engine:add_rule (Engine1, {?MODULE, remove_multiple}, 2),
-    Engine3 = eresye_engine:add_rule (Engine2, {?MODULE, final_rule}, 1),
-    Engine4 = eresye_engine:assert (Engine3, {is, started}),
+    Engine2 = eresye_engine:add_rules(Engine1, ?MODULE),
+    Engine3 = eresye_engine:assert (Engine2, {is, started}),
     End = now(),
     ?assertMatch([{is,finished},
                   {97},
@@ -52,8 +54,8 @@ run_sieve() ->
                   {7},
                   {5},
                   {3},
-                  {2}], eresye_engine:get_kb (Engine4)),
-    R = eresye_engine:get_rules_fired (Engine4),
+                  {2}], eresye_engine:get_kb (Engine3)),
+    R = eresye_engine:get_rules_fired (Engine3),
     io:format ("Rules fired: ~p~n", [R]),
     D = timer:now_diff(End, Start),
     io:format ("Time = ~p sec, ~p rules/sec, rule execution time ~p msec~n",

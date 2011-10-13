@@ -13,6 +13,10 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-rule(mother).
+-rule(father).
+-rules([{grandfather, 10},
+        grandmother]).
 %%
 %% if (X is female) and (X is Y's parent) then (X is Y's mother)
 %%

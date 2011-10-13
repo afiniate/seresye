@@ -13,6 +13,9 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-rules([mother, father, brother, sister, grandfather,
+        grandmother]).
+
 %%
 %% if (X is female) and (X is Y's parent) then (X is Y's mother)
 %%
@@ -74,13 +77,7 @@ grandmother (Engine, {mother, X, Y}, {parent, Y, Z}) ->
 
 rules_test() ->
     Engine0 = eresye_engine:new_with_state([]),
-    Engine2 = lists:foldl(fun(X, Engine1) ->
-                                  eresye_engine:add_rule(Engine1, {?MODULE, X})
-                          end,
-                          Engine0,
-                          [mother, father,
-                           brother, sister,
-                           grandfather, grandmother]),
+    Engine2 =  eresye_engine:add_rules(Engine0, ?MODULE),
 
     Engine3 = eresye_engine:assert (Engine2,
                                     [{male, bob},

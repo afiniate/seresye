@@ -215,22 +215,33 @@ Instantiating the Engine and Populating the Knowledge Base
 
 After writing the rules, we need to:
 
+- define the rules to eresye
 - instantiate the engine;
-- add the rules above to the engine;
 - populate the knowledge base with a set of initial facts.
 
-We do this in the function *start* below:
+We define the rules to ERESYE by defined a 'rules' attribute at the
+start of the module.
+
+    %%%
+    %%% relatives.erl
+    %%%
+    -module (relatives).
+
+    -export([father/3, grandfather/3, grandmother/3,
+             mother/3, brother/4, sister/4, start/0]).
+
+    -rules([mother, father, brother, sister, grandfather,
+            grandmother]).
+
+We continue on to instantiate the engine and popoulate the knowledge
+base in the function *start* below:
 
     start () ->
       application:start(eresye) % Only if it is not already started
-      eresye:start (relatives),
-      lists:foreach (fun (X) ->
-                         eresye:add_rule (relatives, {?MODULE, X})
-                     end,
-                     [mother, father, brother, sister,
-                      grandfather, grandmother]),
+      eresye:start(relatives),
+      eresye:add_rules(relatives, ?MODULE)
 
-      eresye:assert (relatives,
+      eresye:assert(relatives,
                      [{male, bob}, {male, corrado}, {male, mark}, {male, caesar},
                       {female, alice}, {female, sara}, {female, jane}, {female, anna},
                       {parent, jane, bob}, {parent, corrado, bob},
@@ -267,39 +278,34 @@ The final complete code of our AI application is thus the following:
     %%% relatives.erl
     %%%
     -module (relatives).
-    -compile ([export_all]).
+    -export([father/3, grandfather/3, grandmother/3,
+             mother/3, brother/4, sister/4, start/0]).
 
     %%
     %% if (X is female) and (X is Y's parent) then (X is Y's mother)
     %%
-    mother (Engine, {female, X}, {parent, X, Y}) ->
-      eresye:assert (Engine, {mother, X, Y}).
-
+    mother(Engine, {female, X}, {parent, X, Y}) ->
+      eresye:assert(Engine, {mother, X, Y}).
 
     %%
     %% if (X is male) and (X is Y's parent) then (X is Y's father)
     %%
-    father (Engine, {male, X}, {parent, X, Y}) ->
-      eresye:assert (Engine, {father, X, Y}).
-
-
+    father(Engine, {male, X}, {parent, X, Y}) ->
+      eresye:assert(Engine, {father, X, Y}).
 
     %%
     %% if (Y and Z have the same parent X) and (Z is female)
     %%    then (Z is Y's sister)
     %%
-    sister (Engine, {parent, X, Y}, {parent, X, Z}, {female, Z}) when Y =/= Z ->
-      eresye:assert (Engine, {sister, Z, Y}).
-
-
+    sister(Engine, {parent, X, Y}, {parent, X, Z}, {female, Z}) when Y =/= Z ->
+      eresye:assert(Engine, {sister, Z, Y}).
 
     %%
     %% if (Y and Z have the same parent X) and (Z is male)
     %%    then (Z is Y's brother)
     %%
-    brother (Engine, {parent, X, Y}, {parent, X, Z}, {male, Z}) when Y =/= Z ->
-      eresye:assert (Engine, {brother, Z, Y}).
-
+    brother(Engine, {parent, X, Y}, {parent, X, Z}, {male, Z}) when Y =/= Z ->
+      eresye:assert(Engine, {brother, Z, Y}).
 
     %%
     %% if (X is Y's father) and (Y is Z's parent)
@@ -308,23 +314,17 @@ The final complete code of our AI application is thus the following:
     grandfather (Engine, {father, X, Y}, {parent, Y, Z}) ->
       eresye:assert (Engine, {grandfather, X, Z}).
 
-
     %%
     %% if (X is Y's mother) and (Y is Z's parent)
     %%    then (X is Z's grandmother)
     %%
-    grandmother (Engine, {mother, X, Y}, {parent, Y, Z}) ->
-      eresye:assert (Engine, {grandmother, X, Z}).
+    grandmother(Engine, {mother, X, Y}, {parent, Y, Z}) ->
+      eresye:assert(Engine, {grandmother, X, Z}).
 
     start () ->
       application:start(eresye),
       eresye:start (relatives),
-      lists:foreach (fun (X) ->
-                         eresye:add_rule (relatives, {?MODULE, X})
-                     end,
-                     [mother, father,
-                      brother, sister,
-                      grandfather, grandmother]),
+      eresye:add_rules(relatives, ?MODULE)
 
       eresye:assert (relatives,
                      [{male, bob},
@@ -448,8 +448,8 @@ The rule *mother* can be thus written as follows:
     %%
     %% if (X is female) and (X is Y's parent) then (X is Y's mother)
     %%
-    mother (Engine, {female, X}, {parent, X, Y}) ->
-      eresye:assert (Engine, {mother, X, Y}).
+    mother(Engine, {female, X}, {parent, X, Y}) ->
+      eresye:assert(Engine, {mother, X, Y}).
 
 #### Concept: 'father'
 
@@ -458,8 +458,8 @@ This concept can be easily derived by means of the following rule:
     %%
     %% if (X is male) and (X is Y's parent) then (X is Y's father)
     %%
-    father (Engine, {male, X}, {parent, X, Y}) ->
-      eresye:assert (Engine, {father, X, Y}).
+    father(Engine, {male, X}, {parent, X, Y}) ->
+      eresye:assert(Engine, {father, X, Y}).
 
 
 #### Concept: 'sister'
@@ -475,8 +475,8 @@ The ERESYE rule used to map this concept is:
     %% if (Y and Z have the same parent X) and (Z is female)
     %%    then (Z is Y's sister)
     %%
-    sister (Engine, {parent, X, Y}, {parent, X, Z}, {female, Z}) when Y =/= Z ->
-      eresye:assert (Engine, {sister, Z, Y}).
+    sister(Engine, {parent, X, Y}, {parent, X, Z}, {female, Z}) when Y =/= Z ->
+      eresye:assert(Engine, {sister, Z, Y}).
 
 Please note the guard, which is needed to ensure that when Y and Z are
 bound to the same value, the rule is not activated (indeed this is possible
@@ -492,8 +492,8 @@ implement:
     %% if (Y and Z have the same parent X) and (Z is male)
     %%    then (Z is Y's brother)
     %%
-    brother (Engine, {parent, X, Y}, {parent, X, Z}, {male, Z}) when Y =/= Z ->
-      eresye:assert (Engine, {brother, Z, Y}).
+    brother(Engine, {parent, X, Y}, {parent, X, Z}, {male, Z}) when Y =/= Z ->
+      eresye:assert(Engine, {brother, Z, Y}).
 
 
 #### Concepts: 'grandmother' and 'grandfather'
@@ -509,15 +509,15 @@ following ERESYE rules:
     %% if (X is Y's mother) and (Y is Z's parent)
     %%    then (X is Z's grandmother)
     %%
-    grandmother (Engine, {mother, X, Y}, {parent, Y, Z}) ->
-      eresye:assert (Engine, {grandmother, X, Z}).
+    grandmother(Engine, {mother, X, Y}, {parent, Y, Z}) ->
+      eresye:assert(Engine, {grandmother, X, Z}).
 
     %%
     %% if (X is Y's father) and (Y is Z's parent)
     %%    then (X is Z's grandfather)
     %%
-    grandfather (Engine, {father, X, Y}, {parent, Y, Z}) ->
-      eresye:assert (Engine, {grandfather, X, Z}).
+    grandfather(Engine, {father, X, Y}, {parent, Y, Z}) ->
+      eresye:assert(Engine, {grandfather, X, Z}).
 
 
 Conclusions

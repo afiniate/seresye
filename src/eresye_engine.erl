@@ -24,7 +24,7 @@
 %%====================================================================
 
 -export([new/0, new/2, new_with_ontology/1, new_with_state/1,
-         add_rule/2, add_rule/3, assert/2, get_kb/1, get_ontology/1,
+         add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1, get_ontology/1,
          get_rules_fired/1, get_client_state/1, set_client_state/2,
          query_kb/2, remove_rule/2, retract/2]).
 
@@ -84,16 +84,36 @@ retract(EngineState = #eresye{kb=Kb, alfa=Alfa}, Fact) when is_tuple(Fact) ->
                         false -> EngineState
                     end).
 
-add_rule(EngineState, Fun) -> add_rule(EngineState, Fun, 0).
+
+add_rules(EngineState0, RulesList) when is_list(RulesList) ->
+    lists:foldl(fun(Rule, EngineState1) ->
+                        add_rule(EngineState1, Rule)
+                end, EngineState0, RulesList);
+add_rules(EngineState0, Module) when is_atom(Module) ->
+    AST = get_abstract_code(Module),
+    case get_rules(Module, AST) of
+        [] ->
+            erlang:throw({eresye, {no_rules_specified, Module}});
+        RulesList ->
+            lists:foldl(fun(Rule, EngineState1) ->
+                                add_rule(EngineState1, Rule)
+                        end, EngineState0, RulesList)
+    end.
+
+add_rule(EngineState, {Module, Fun, ClauseID, Salience}) ->
+    add_rule(EngineState, {Module, Fun}, ClauseID, Salience);
+add_rule(EngineState, Fun) ->
+    add_rule(EngineState, Fun, 0).
 
 add_rule(EngineState, {Module, Fun, ClauseID}, Salience) ->
     add_rule(EngineState, {Module, Fun}, ClauseID, Salience);
 add_rule(EngineState, {Module, Fun}, Salience) ->
     add_rule(EngineState, {Module, Fun}, 0, Salience).
 
-add_rule(EngineState0, Fun, ClauseID, Salience) ->
+add_rule(EngineState0, {Module, Fun}, ClauseID, Salience) ->
     Ontology = get_ontology(EngineState0),
-    case get_conds(Fun, Ontology, ClauseID) of
+    AST = get_abstract_code(Module),
+    case get_conds(Fun, Ontology, ClauseID, AST) of
         error -> erlang:throw({eresye, {error_extracting_conditions, Fun}});
         CondsList ->
             execute_pending(
@@ -101,12 +121,12 @@ add_rule(EngineState0, Fun, ClauseID, Salience) ->
                                   case X of
                                       {error, Msg} ->
                                           erlang:throw({eresye, {error_adding_rule,
-                                                                 [Fun, Msg]}});
+                                                         [Module, Fun, Msg]}});
                                       {PConds, NConds} ->
                                           ?LOG(">> PConds=~p~n", [PConds]),
                                           ?LOG(">> NConds=~p~n", [NConds]),
                                           add_rule__(EngineState1,
-                                                     {Fun, Salience},
+                                                     {{Module, Fun}, Salience},
                                                      {PConds, NConds})
                                   end
                           end,
@@ -193,7 +213,7 @@ prepare_match_alpha_fun(Cond) ->
                                     [Cond])),
     evaluate(FunString).
 
-get_conds({Module, Func}, Ontology, ClauseID) ->
+get_abstract_code(Module) ->
     case beam_lib:chunks(code:which(Module), [abstract_code]) of
         {error, beam_lib, {file_error, File, enoent}} ->
             erlang:throw({eresye,
@@ -202,16 +222,16 @@ get_conds({Module, Func}, Ontology, ClauseID) ->
             erlang:throw({eresye,
                           {no_abstract_code, Module,
                            "module must be compiled with +debug_info"}});
-        {ok, {Module, [{abstract_code, {raw_abstract_v1, Form}}]}} ->
-            parse_forms(Module, Func, Ontology, ClauseID, Form)
+        {ok, {Module, [{abstract_code, {raw_abstract_v1, Forms}}]}} ->
+            Forms
     end.
 
-parse_forms(Module, Func, Ontology, ClauseID, Form) ->
-    Records = get_records(Form, []),
-    case search_fun(Form, Func, Records) of
+get_conds(Func, Ontology, ClauseID, AST) ->
+    Records = get_records(AST, []),
+    case search_fun(AST, Func, Records) of
         {error, Reason} ->
             erlang:throw({eresye, {error_parsing_forms,
-                                   {Module, Func}, Reason}});
+                                   Func, Reason}});
         {ok, CL} ->
             ClauseList =
                 if ClauseID > 0 ->
@@ -227,11 +247,36 @@ parse_forms(Module, Func, Ontology, ClauseID, Form) ->
             case read_clause(SolvedClauses, [], Records) of
                 {error, Reason} ->
                     erlang:throw({eresye, {unable_to_read_clauses,
-                                           {Module, Func, Reason}}});
+                                           Func, Reason}});
                 CondsList ->
                     CondsList
             end
     end.
+
+get_rules(Module, AST) ->
+    get_rules(Module, AST, []).
+
+get_rules(_Module, [], Acc) ->
+    lists:reverse(Acc);
+get_rules(Module, [{attribute, _, rule, Rule} | Rest], Acc) ->
+    get_rules(Module, Rest, [resolve_rule(Module, Rule) | Acc]);
+get_rules(Module, [{attribute, _, rules, RuleList0} | Rest], Acc)
+  when is_list(RuleList0) ->
+    RuleList1 = [resolve_rule(Module, Rule) || Rule <- RuleList0],
+    get_rules(Module, Rest, RuleList1 ++ Acc);
+get_rules(Module, [_ | Rest], Acc) ->
+    get_rules(Module, Rest, Acc).
+
+
+resolve_rule(Module, Rule) when is_atom(Rule) ->
+    {Module, Rule, 0, 0};
+resolve_rule(Module, {Rule, Salience}) ->
+    {Module, Rule, 0, Salience};
+resolve_rule(Module, {Rule, Salience, ClauseID}) ->
+    {Module, Rule, ClauseID, Salience};
+resolve_rule(Module, Rule) ->
+    erlang:throw({eresye, {invalid_rule_definition, Module, Rule}}).
+
 
 get_records([], Acc) -> lists:reverse(Acc);
 get_records([{attribute, _, record,
