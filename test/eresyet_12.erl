@@ -35,7 +35,7 @@ given([an, eresye, engine, that, is, initialized, with,
     %% just a placeholder
     {ok, Engine}.
 
-then([then, the, per, engine, state, is, retrievable],
+then([the, per, engine, state, is, retrievable],
      Engine, _) ->
     {ok, {Engine, eresye_engine:get_client_state(Engine)}};
 then([contains, the, data, populated, by, the, rules],

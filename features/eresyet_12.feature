@@ -8,6 +8,6 @@ Feature: Support explicit state passing in an eresye system
     Given an eresye engine that is initialized with state
     And initialized with data
     When when eresye propagation is complete
-    Then then the per engine state is retrievable
+    Then the per engine state is retrievable
     And contains the data populated by the rules
 
