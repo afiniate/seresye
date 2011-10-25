@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang='en'>
+  <head>
+    <title>{{ page.title }}</title>
+    <meta http-equiv='Content-Type' content='text/html; charset=utf-8' />
+    <!--[if lt IE 9]><script type='text/javascript' src='assets/javascript/html5.js'></script><![endif]-->
+    <script type='text/javascript' src='assets/javascript/prettify.js'></script>
+    <link rel='stylesheet' type='text/css' href='assets/css/skeleton/stylesheets/base.css' />x
+    <link rel='stylesheet' type='text/css' href='assets/css/skeleton/stylesheets/skeleton.css' />
+    <link rel='stylesheet' type='text/css' href='assets/css/prettify.css' />
+    <link rel='stylesheet' type='text/css' href='assets/css/style.css' />
+    <link rel='stylesheet' type='text/css' href='assets/css/code.css' />
+  </head>
+
+  <body onload='prettyPrint()'>
+    <div class='container'>
+      <header class='sixteen columns'>
+        <div class='nine columns alpha'>
+          <h1>SERESYE - {{ page.title }}</h1>
+        </div>
+
+        <div class='six columns offset-by-one omega'>
+          <a href='https://github.com/downloads/afiniate/seresye'
+             class='download-button'>
+            Download
+            <span>Latest version from GitHub</span>
+          </a>
+        </div>
+      </header>
+
+      <div class="menu sixteen columns">
+        <ul>
+          <li><a href="/seresye/">Home</a></li>
+          <li><a href="/seresye/Domain_Of_Relatives_Example.pdf">
+              Domain of Relatives Example (out of date)</a></li>
+          <li><a href="/seresye/Eresye_Paper.pdf">
+              Eresye Paper (out of date)</a></li>
+        </ul>
+        <br style="clear:left"/>
+      </div>
+
+      <div class='sixteen columns'>
+
+        {{content}}
+
+      </div>
+
+      <div class='sixteen columns'>
+
+
+      </div>
+    </div>
+
+    <footer>
+      <div class='container'>
+        <div class='ten columns offset-by-three repo-author'>
+          <img src='http://www.afiniate.com/uploads/9/1/6/3/9163759/3030558.png?364'
+               class='repo-author-logo' />
+          <a href="http://www.twitter.com/afiniate">
+            <img src="http://twitter-badges.s3.amazonaws.com/twitter-a.png"
+                 alt="Follow Afiniate on Twitter"/>
+          </a>
+          <p>
+            Aﬁniate has proven expertise in delivering innovative,
+            mission-critical enterprise solutions, including
+            large-scale distributed systems to Fortune 500 companies
+            like Amazon.com and leading edge high-frequency trading
+            systems to private brokerages like PEAK6 Investments.
+
+            We are focused on applying that expertise in developing
+            intelligence and analytic systems for the banking
+            industry, and using that technology to help already
+            successful ﬁnancial institutions to fully leverage their
+            valuable, but underutilized, data in ways that drive
+            increased revenue, improved operational efﬁciencies,
+            insight-based decision making, and enhanced customer
+            satisfaction.
+          </p>
+        </div>
+
+        <div class='sixteen columns credits'>
+          <p>GitHub release template built with HTML5, CSS3 and JS
+            by <a href='http://fublo.net'>Fublo</a></p>
+        </div>
+      </div>
+    </footer>
+
+    <a href='https://github.com/afiniate/seresye'
+       class='github-ribbon'><img src='assets/images/github-ribbons/red.png'
+                                  /></a>
+  </body>
+</html>
