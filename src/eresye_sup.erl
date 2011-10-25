@@ -11,7 +11,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0, start_engine/1, start_engine/3]).
+-export([start_link/0, start_engine/1, start_engine/2]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -28,8 +28,8 @@ start_link() ->
 start_engine(Name) ->
     supervisor:start_child(?SERVER, [Name]).
 
-start_engine(Name, Ontology, ClientState) ->
-    supervisor:start_child(?SERVER, [Name, Ontology, ClientState]).
+start_engine(Name, ClientState) ->
+    supervisor:start_child(?SERVER, [Name, ClientState]).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -49,4 +49,3 @@ init([]) ->
               Restart, Shutdown, Type, [eresye]},
 
     {ok, {SupFlags, [AChild]}}.
-

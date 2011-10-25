@@ -1,2 +1,1 @@
--record(eresye, {kb, alfa, join, agenda, ontology, pending_actions, client_state}).
-
+-record(eresye, {kb, alfa, join, agenda, pending_actions, client_state}).

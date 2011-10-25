@@ -21,7 +21,7 @@ given([initialized, with, data], Engine, _) ->
 given([an, eresye, engine, that, is, initialized, with,
        state],
       _, _) ->
-    Engine0 = eresye_engine:new_with_state([]),
+    Engine0 = eresye_engine:new([]),
     Engine1 = lists:foldl(fun (X, Engine1) ->
                                   eresye_engine:add_rule(Engine1,
                                                          {eresyet_simple_relatives, X})

@@ -54,7 +54,7 @@ grandmother(Engine, {mother, X, Y}, {parent, Y, Z}) ->
                                     | eresye_engine:get_client_state(Engine)]).
 
 rules_test() ->
-    Engine0 = eresye_engine:new_with_state([]),
+    Engine0 = eresye_engine:new([]),
     Engine2 =
         lists:foldl(fun (X, Engine1) ->
                             eresye_engine:add_rule (Engine1, {?MODULE, X})

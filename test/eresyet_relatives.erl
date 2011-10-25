@@ -76,7 +76,7 @@ grandmother (Engine, {mother, X, Y}, {parent, Y, Z}) ->
 
 
 rules_test() ->
-    Engine0 = eresye_engine:new_with_state([]),
+    Engine0 = eresye_engine:new([]),
     Engine2 =  eresye_engine:add_rules(Engine0, ?MODULE),
 
     Engine3 = eresye_engine:assert (Engine2,

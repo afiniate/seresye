@@ -38,7 +38,7 @@ rule3 (Engine, {hello, [_H|T]}, {test, T}) ->
 
 start () ->
 
-    Engine0 = eresye_engine:add_rule (eresye_engine:new_with_state([]), {?MODULE, rule2}),
+    Engine0 = eresye_engine:add_rule (eresye_engine:new([]), {?MODULE, rule2}),
     Engine1 = eresye_engine:assert (Engine0, [[{ciao, mondo}, {mondo, 20}],
                                               {hello, world},
                                               {ok, world},

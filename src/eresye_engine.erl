@@ -23,8 +23,8 @@
 %% External exports
 %%====================================================================
 
--export([new/0, new/2, new_with_ontology/1, new_with_state/1,
-         add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1, get_ontology/1,
+-export([new/0, new/1,
+         add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1,
          get_rules_fired/1, get_client_state/1, set_client_state/2,
          query_kb/2, remove_rule/2, retract/2]).
 
@@ -32,20 +32,13 @@
 %% External functions
 %%====================================================================
 new() ->
-    new(nil, undefined).
+    new(undefined).
 
-new(Ontology, ClientState) ->
+new(ClientState) ->
     eresye_agenda:new(#eresye{kb=[], alfa=[],
                               join=eresye_tree_list:new(),
-                              ontology=Ontology,
                               pending_actions=[],
                               client_state=ClientState}).
-
-new_with_ontology(Ontology) ->
-    new(Ontology, undefined).
-
-new_with_state(State) ->
-    new(nil, State).
 
 set_client_state(EngineState, NewState) ->
     EngineState#eresye{client_state=NewState}.
@@ -111,9 +104,8 @@ add_rule(EngineState, {Module, Fun}, Salience) ->
     add_rule(EngineState, {Module, Fun}, 0, Salience).
 
 add_rule(EngineState0, {Module, Fun}, ClauseID, Salience) ->
-    Ontology = get_ontology(EngineState0),
     AST = get_abstract_code(Module),
-    case get_conds(Fun, Ontology, ClauseID, AST) of
+    case get_conds(Fun, ClauseID, AST) of
         error -> erlang:throw({eresye, {error_extracting_conditions, Fun}});
         CondsList ->
             execute_pending(
@@ -136,9 +128,6 @@ add_rule(EngineState0, {Module, Fun}, ClauseID, Salience) ->
 
 remove_rule(EngineState0, Rule) ->
     execute_pending(remove_prod(eresye_agenda:delete_rule(EngineState0, Rule), Rule)).
-
-get_ontology(#eresye{ontology=Ontology}) ->
-    Ontology.
 
 get_rules_fired(EngineState) ->
     eresye_agenda:get_rules_fired(EngineState).
@@ -226,7 +215,7 @@ get_abstract_code(Module) ->
             Forms
     end.
 
-get_conds(Func, Ontology, ClauseID, AST) ->
+get_conds(Func, ClauseID, AST) ->
     Records = get_records(AST, []),
     case search_fun(AST, Func, Records) of
         {error, Reason} ->
@@ -238,13 +227,7 @@ get_conds(Func, Ontology, ClauseID, AST) ->
                         [lists:nth(ClauseID, CL)];
                    true -> CL
                 end,
-            SolvedClauses =
-                if Ontology == nil -> ClauseList;
-                   true ->
-                        eresye_ontology_resolver:resolve_ontology(ClauseList,
-                                                                  Ontology)
-                end,
-            case read_clause(SolvedClauses, [], Records) of
+            case read_clause(ClauseList, [], Records) of
                 {error, Reason} ->
                     erlang:throw({eresye, {unable_to_read_clauses,
                                            Func, Reason}});

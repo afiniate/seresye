@@ -13,7 +13,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 given([an, eresye, engine, that, is, initialized, with, data], _State, _) ->
-    Engine0 = eresye_engine:new_with_state([]),
+    Engine0 = eresye_engine:new([]),
     {ok,
      eresye_engine:assert(Engine0,
                           [{male, bob}, {mail, joe}, {male, corrado},

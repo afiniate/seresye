@@ -12,13 +12,13 @@
 %% External exports
 %%====================================================================
 
--export([start/1, start/3, stop/1, get_engine/1,
+-export([start/1, start/2, stop/1, get_engine/1,
          add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1,
-         get_ontology/1, get_rules_fired/1, get_client_state/1,
+         get_rules_fired/1, get_client_state/1,
          set_client_state/2, query_kb/2, remove_rule/2, retract/2]).
 
 %% gen_server callbacks
--export([start_link/1, start_link/3, init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([start_link/1, start_link/2, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 %%====================================================================
@@ -27,8 +27,8 @@
 start(Name) ->
     eresye_sup:start_engine(Name).
 
-start(Name, Ontology, ClientState) ->
-    eresye_sup:start_engine(Name, Ontology, ClientState).
+start(Name, ClientState) ->
+    eresye_sup:start_engine(Name, ClientState).
 
 set_client_state(Name, NewState) ->
     gen_server:cast(Name, {set_client_state, NewState}).
@@ -66,9 +66,6 @@ add_rule(Name, Rule, Salience) ->
 remove_rule(Name, Rule) ->
     gen_server:call(Name, {remove_rule, Rule}).
 
-get_ontology(Name) ->
-    gen_server:call(Name, get_ontology).
-
 get_rules_fired(Name) ->
     gen_server:call(Name, get_rules_fired).
 
@@ -85,14 +82,14 @@ query_kb(Name, Pattern) ->
 start_link(Name) when is_atom(Name) ->
     gen_server:start_link({local, Name}, ?MODULE, [], []).
 
-start_link(Ontology, ClientState, Name) when is_atom(Name) ->
-    gen_server:start_link({local, Name}, ?MODULE, [Ontology, ClientState], []).
+start_link(ClientState, Name) when is_atom(Name) ->
+    gen_server:start_link({local, Name}, ?MODULE, [ClientState], []).
 
 
 init([]) ->
     {ok, eresye_engine:new()};
-init([Ontology, ClientState]) ->
-    {ok, eresye_engine:new(Ontology, ClientState)}.
+init([ClientState]) ->
+    {ok, eresye_engine:new(ClientState)}.
 
 
 handle_call(get_client_state, _From, State) ->
@@ -160,15 +157,6 @@ handle_call({remove_rule, Rule}, _From, State0) ->
                 {{error, {Type, Reason}}, State0}
         end,
     {reply, Reply, State1};
-handle_call(get_ontology, _From, State0) ->
-    Reply =
-        try
-            eresye_engine:get_ontology(State0)
-        catch
-            Type:Reason ->
-                {error, {Type, Reason}}
-        end,
-    {reply, Reply, State0};
 handle_call(get_rules_fired, _From, State0) ->
     Reply =
         try
@@ -210,4 +198,3 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
