@@ -10,6 +10,7 @@
 -export([remove_multiple/3, final_rule/2, run_sieve/0]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("eresye/include/eresye.hrl").
 
 -rules([{remove_multiple, 2},
         {final_rule, 1}]).
@@ -18,7 +19,7 @@ remove_multiple (Engine, {X}, {Y}) when ((X rem Y) == 0) and (X =/= Y)->
     eresye_engine:retract (Engine, {X}).
 
 final_rule (Engine0, {is, started} = X)
-  when not ["{is, finished}"];true ->
+  when not {rule, [{is, finished}]} ->
     Engine1 = eresye_engine:retract (Engine0, X),
     eresye_engine:assert (Engine1, {is, finished}).
 

@@ -196,11 +196,14 @@ initialize_alfa(Cond, Tab, [Fact | Other_fact]) ->
     end.
 
 prepare_match_alpha_fun(Cond) ->
-    FunString =
-        lists:flatten(io_lib:format("fun (~s = X__x__X) -> X__x__X;    (_) "
-                                    " -> false end.",
-                                    [Cond])),
-    evaluate(FunString).
+    Expr =
+        [{'fun',1,
+          {clauses,[{clause,1,
+                     [{match,1,Cond,{var,1,'X__x__X'}}],
+                     [],
+                     [{var,1,'X__x__X'}]},
+                    {clause,1,[{var,1,'_'}],[],[{atom,1,false}]}]}}],
+    eval(Expr).
 
 get_abstract_code(Module) ->
     case beam_lib:chunks(code:which(Module), [abstract_code]) of
@@ -215,26 +218,49 @@ get_abstract_code(Module) ->
             Forms
     end.
 
-get_conds(Func, ClauseID, AST) ->
+get_conds(FunName, ClauseID, AST) ->
     Records = get_records(AST, []),
-    case search_fun(AST, Func, Records) of
+    case search_fun(FunName, AST) of
         {error, Reason} ->
             erlang:throw({eresye, {error_parsing_forms,
-                                   Func, Reason}});
+                                   FunName, Reason}});
         {ok, CL} ->
-            ClauseList =
-                if ClauseID > 0 ->
-                        [lists:nth(ClauseID, CL)];
-                   true -> CL
-                end,
-            case read_clause(ClauseList, [], Records) of
-                {error, Reason} ->
-                    erlang:throw({eresye, {unable_to_read_clauses,
-                                           Func, Reason}});
-                CondsList ->
-                    CondsList
+            if ClauseID > 0 ->
+                    [read_clause(FunName, ClauseID,
+                                 lists:nth(ClauseID, CL), Records, AST)];
+               true ->
+                    [read_clause(FunName, ClauseID, Clause, Records, AST) ||
+                        Clause <- CL]
             end
     end.
+
+get_records([], Acc) ->
+    Acc;
+get_records([{attribute, _, record,
+              {RecordName, RecordFields}}
+             | Tail],
+            Acc) ->
+    NewAcc = [{RecordName,
+               get_record_fields(RecordFields, [])}
+              | Acc],
+    get_records(Tail, NewAcc);
+get_records([_ | Tail], Acc) ->
+    get_records(Tail, Acc).
+
+get_record_fields([], Acc) -> lists:reverse(Acc);
+get_record_fields([{record_field, _,
+                    {atom, _, FieldName}, {atom, _, DefaultValue}}
+                   | Tail],
+                  Acc) ->
+    NewAcc = [{FieldName, DefaultValue} | Acc],
+    get_record_fields(Tail, NewAcc);
+get_record_fields([{record_field, _,
+                    {atom, _, FieldName}}
+                   | Tail],
+                  Acc) ->
+    NewAcc = [{FieldName} | Acc],
+    get_record_fields(Tail, NewAcc).
+
 
 get_rules(Module, AST) ->
     get_rules(Module, AST, []).
@@ -261,103 +287,109 @@ resolve_rule(Module, Rule) ->
     erlang:throw({eresye, {invalid_rule_definition, Module, Rule}}).
 
 
-get_records([], Acc) -> lists:reverse(Acc);
-get_records([{attribute, _, record,
-              {RecordName, RecordFields}}
-             | Tail],
-            Acc) ->
-    NewAcc = [{RecordName,
-               get_record_fields(RecordFields, [])}
-              | Acc],
-    get_records(Tail, NewAcc);
-get_records([_ | Tail], Acc) -> get_records(Tail, Acc).
-
-get_record_fields([], Acc) -> lists:reverse(Acc);
-get_record_fields([{record_field, _,
-                    {atom, _, FieldName}, {atom, _, DefaultValue}}
-                   | Tail],
-                  Acc) ->
-    NewAcc = [{FieldName, DefaultValue} | Acc],
-    get_record_fields(Tail, NewAcc);
-get_record_fields([{record_field, _,
-                    {atom, _, FieldName}}
-                   | Tail],
-                  Acc) ->
-    NewAcc = [{FieldName} | Acc],
-    get_record_fields(Tail, NewAcc).
-
-search_fun([], _, _RecordList) ->
+search_fun([], _) ->
     {error, "function not found"};
-search_fun([{function, _, _Func, _, ClauseList} | _Other],
-           _Func, _RecordList) ->
+search_fun(Func, [{function, _, Func, _, ClauseList} | _Rest]) ->
     {ok, ClauseList};
-search_fun([_Tuple | Other], Func, RecordList) ->
-    search_fun(Other, Func, RecordList).
+search_fun( Func, [_Tuple | Rest]) ->
+    search_fun(Func, Rest).
 
-read_clause([], CondsList, _RecordList) -> CondsList;
-read_clause([Clause | OtherClause], CondsList,
-            RecordList) ->
-    {clause, _, ParamList, GuardList, _} = Clause,
+read_clause(FunName, ClauseID, Clause, RecordList, AST) ->
+    {clause, _, ParamList, _, _} = Clause,
     PosConds = read_parameters(ParamList, RecordList),
-    NegConds = read_guard(GuardList),
-    CondsList1 = CondsList ++ [{PosConds, NegConds}],
-    read_clause(OtherClause, CondsList1, RecordList).
+    {PosConds, get_neg_conds(FunName, ClauseID, AST)}.
 
-read_guard([]) -> [];
-read_guard([[{op, _, 'not', Conds} | _]
-            | _OtherGuard]) ->
-    Nc = get_neg_cond(Conds, []), lists:reverse(Nc);
-read_guard(_Guard) -> [].
+get_neg_conds(FunName0, ClauseID0, AST) ->
+    lists:foldl(fun({attribute,_,rule_neg, {FunName1, ClauseID1, Detail}}, _)
+                   when ClauseID0 == ClauseID1, FunName0 == FunName1 ->
+                        neg_to_list(rewrite_negs(Detail), []);
+                   (_, Acc) ->
+                        Acc
+                end, [], AST).
 
-get_neg_cond({nil, _}, Nc) -> Nc;
-get_neg_cond({cons, _, {string, _, C}, OtherC}, Nc) ->
-    Nc1 = [C | Nc], get_neg_cond(OtherC, Nc1);
-get_neg_cond(X, Nc) ->
-    erlang:throw({eresye, {invalid_condition, {X, Nc},
-                           ">> Negated Conditions must be a list "
-                           "of String~n"}}).
+neg_to_list({cons, _, C1, Rest}, Acc) ->
+    neg_to_list(Rest, [C1 | Acc]);
+neg_to_list({nil, _}, Acc) ->
+    lists:reverse(Acc).
+
+
+rewrite_negs({tuple, _, Elements}) ->
+    {tuple, 0, lists:map(fun rewrite_negs/1, Elements)};
+rewrite_negs(C = {cons, _, _, _}) ->
+    rewrite_cons(C);
+rewrite_negs({atom, _, '___IGNORE___'}) ->
+    {var, 0, '_'};
+rewrite_negs(Else) ->
+    remove_line_numbers(Else).
+
+rewrite_cons({cons, _, Element, nil}) ->
+    {cons, 0, rewrite_negs(Element), nil};
+rewrite_cons({cons, _, E1, Rest}) ->
+    {cons, 0, rewrite_negs(E1), rewrite_negs(Rest)}.
 
 read_parameters([{var, _, _} | Tail], RecordList) ->
-    P = extract_parameters(Tail, [], RecordList),
-    Conditions = [build_string_condition(X, []) || X <- P],
-    Conditions.
+    extract_parameters(Tail, RecordList, []).
 
-extract_parameters([], Acc, _RecordList) ->
+extract_parameters([], _, Acc) ->
     lists:reverse(Acc);
-extract_parameters([{match, _, {tuple, _, Condition},
-                     {var, _, _}}
-                    | Tail],
-                   Acc, RecordList) ->
-    extract_parameters(Tail, [Condition | Acc], RecordList);
-extract_parameters([{match, _, {var, _, _},
-                     {tuple, _, Condition}}
-                    | Tail],
-                   Acc, RecordList) ->
-    extract_parameters(Tail, [Condition | Acc], RecordList);
 extract_parameters([{match, _, {record, _, _, _} = R,
                      {var, _, _}}
                     | Tail],
-                   Acc, RecordList) ->
-    extract_parameters([R | Tail], Acc, RecordList);
+                   RecordList,
+                   Acc) ->
+    extract_parameters([R | Tail], RecordList, Acc);
+extract_parameters([{match, _, Condition,
+                     {var, _, _}}
+                    | Tail],
+                   RecordList,
+                   Acc) ->
+    extract_parameters(Tail, RecordList, [remove_line_numbers(Condition) | Acc]);
 extract_parameters([{match, _, {var, _, _},
                      {record, _, _, _} = R}
                     | Tail],
-                   Acc, RecordList) ->
-    extract_parameters([R | Tail], Acc, RecordList);
+                   RecordList,
+                   Acc) ->
+    extract_parameters([R | Tail], RecordList, Acc);
+extract_parameters([{match, _, {var, _, _},
+                     Condition}
+                    | Tail],
+                   RecordList,
+                   Acc) ->
+    extract_parameters(Tail, RecordList, [remove_line_numbers(Condition) | Acc]);
 extract_parameters([{record, _, RecordName, Condition}
                     | Tail],
-                   Acc, RecordList) ->
+                   RecordList,
+                   Acc) ->
     RecordDefinition = get_record_def(RecordName,
                                       RecordList),
     RecordDefaults = make_record_default(RecordDefinition,
                                          []),
-    Pattern = [{atom, 0, RecordName}
-               | make_record_pattern(Condition, RecordDefaults,
-                                     RecordDefinition)],
-    extract_parameters(Tail, [Pattern | Acc], RecordList);
-extract_parameters([{tuple, _, Condition} | Tail], Acc,
-                   RecordList) ->
-    extract_parameters(Tail, [Condition | Acc], RecordList).
+    Pattern = {tuple, 0, [{atom, 0, RecordName}
+                          | make_record_pattern(Condition, RecordDefaults,
+                                                RecordDefinition)]},
+    extract_parameters(Tail, RecordList, [Pattern | Acc]);
+extract_parameters([Condition | Tail], RecordList, Acc) ->
+    extract_parameters(Tail, RecordList, [remove_line_numbers(Condition) | Acc]).
+
+%% @doc removing the line numbers make it easier to compare conditions
+%% for equality
+remove_line_numbers(Values) when is_list(Values) ->
+    lists:map(fun remove_line_numbers/1, Values);
+remove_line_numbers({Type, L})
+    when is_integer(L), is_atom(Type) ->
+    {Type, 0};
+remove_line_numbers({Type, L, Values})
+  when is_integer(L), is_atom(Type), is_list(Values) ->
+    {Type, 0, lists:map(fun remove_line_numbers/1, Values)};
+remove_line_numbers({Type, L, Value})
+  when is_integer(L), is_atom(Type) ->
+    {Type, 0, Value};
+remove_line_numbers({Type, L, C1, C2})
+  when is_integer(L), is_atom(Type) ->
+    {Type, 0, remove_line_numbers(C1), remove_line_numbers(C2)}.
+
+
+
 
 get_record_def(_, []) -> nil;
 get_record_def(Name, [{Name, Definition} | _Rest]) ->
@@ -395,27 +427,6 @@ get_record_field_pos(Name, [{Name} | _], Index) ->
 get_record_field_pos(Name, [_ | Tail], Index) ->
     get_record_field_pos(Name, Tail, Index + 1).
 
-build_string_condition([], Acc) ->
-    lists:concat(["{",
-                  tl(lists:flatten(lists:reverse(Acc))), "}"]);
-build_string_condition([{atom, _, Value} | Tail],
-                       Acc) ->
-    Term = lists:concat([",'", atom_to_list(Value), "'"]),
-    build_string_condition(Tail, [Term | Acc]);
-build_string_condition([{integer, _, Value} | Tail],
-                       Acc) ->
-    Term = lists:concat([",", integer_to_list(Value)]),
-    build_string_condition(Tail, [Term | Acc]);
-build_string_condition([{var, _, Value} | Tail], Acc) ->
-    Term = lists:concat([",", atom_to_list(Value)]),
-    build_string_condition(Tail, [Term | Acc]);
-build_string_condition([{cons, _, {var, _, Value1},
-                         {var, _, Value2}}
-                        | Tail],
-                       Acc) ->
-    Term = lists:flatten([",[", atom_to_list(Value1), "|",
-                          atom_to_list(Value2), "]"]),
-    build_string_condition(Tail, [Term | Acc]).
 
 %% @doc P and a list containing the conditions prior to Cond Of the
 %% same production
@@ -493,57 +504,16 @@ add_alfa(#eresye{kb=Kb, alfa=Alfa}, Cond) ->
     case is_present(Cond, Alfa) of
         false ->
             Tab = ets:new(alfa, [bag]),
-            Fun = lists:concat(["F=fun(", Cond, ")->true end."]),
-            Alfa_fun = evaluate(Fun),
+            Fun = [{'fun',1,
+                    {clauses,
+                     [{clause,1,
+                       [Cond],[],[{atom,1,true}]}]}}],
+            Alfa_fun = eval(Fun),
             Alfa1 = [{Cond, Tab, Alfa_fun} | Alfa],
             initialize_alfa(Cond, Tab, Kb),
             {Alfa1, {new, Tab}};
         {true, Tab} -> {Alfa, {old, Tab}}
     end.
-
-%% @doc prepare a string representing Cond=Fact
-%% (es. "{X, on, Y}={b1, on, b3}." )
-prepare_string(Cond, Fact) ->
-    Fact1 = tuple_to_list(Fact),
-    Str = lists:concat([Cond, "={"]),
-    Str1 = append_fact([], Fact1, siend),
-    string:concat(Str, Str1).
-
-append_fact(H, [Elem], _Flag) when is_list(Elem) ->
-    lists:concat([H, "[", append_fact([], Elem, noend),
-                  "]}."]);
-append_fact(H, [Elem], _Flag) when is_tuple(Elem) ->
-    Elem1 = tuple_to_list(Elem),
-    lists:concat([H, "{",
-                  append_fact([], Elem1, noend), "}}."]);
-append_fact(H, [Elem], Flag) when is_integer(Elem) ->
-    case Flag of
-        noend -> lists:concat([H, Elem]);
-        _Other -> lists:concat([H, Elem, "}."])
-    end;
-append_fact(H, [Elem], Flag) ->
-    case Flag of
-        noend -> lists:concat([H, "'", Elem, "'"]);
-        _Other -> lists:concat([H, "'", Elem, "'}."])
-    end;
-append_fact(H, [Elem | Other_elem], Flag)
-  when is_list(Elem) ->
-    H1 = lists:concat([H, "[", append_fact([], Elem, noend),
-                       "],"]),
-    append_fact(H1, Other_elem, Flag);
-append_fact(H, [Elem | Other_elem], Flag)
-  when is_tuple(Elem) ->
-    Elem1 = tuple_to_list(Elem),
-    H1 = lists:concat([H, "{",
-                       append_fact([], Elem1, noend), "},"]),
-    append_fact(H1, Other_elem, Flag);
-append_fact(H, [Elem | Other_elem], Flag)
-  when is_integer(Elem) ->
-    H1 = lists:concat([H, Elem, ","]),
-    append_fact(H1, Other_elem, Flag);
-append_fact(H, [Elem | Other_elem], Flag) ->
-    H1 = lists:concat([H, "'", Elem, "',"]),
-    append_fact(H1, Other_elem, Flag).
 
 remove_prod(EngineState0 = #eresye{join=Join}, Fun) ->
     case eresye_tree_list:keysearch({p_node, Fun}, Join) of
@@ -593,7 +563,9 @@ remove_nodes(Node, EngineState0 = #eresye{join=Join, alfa=Alfa}) ->
                                         true ->
                                             Alfa
                                     end,
-                            remove_nodes(Parent_node1, EngineState0#eresye{alfa=Alfa1, join=Join1})
+                            remove_nodes(Parent_node1,
+                                         EngineState0#eresye{alfa=Alfa1,
+                                                             join=Join1})
                     end;
                 true -> EngineState0
             end;
@@ -608,127 +580,70 @@ is_present(Cond, [{C1, Tab, _Alfa_fun} | Other_cond]) ->
         false -> is_present(Cond, Other_cond)
     end.
 
-same_cond(Cond1, Cond1) -> true;
+replace_variables_with_atoms({cons, Line, Element, Rest}) ->
+    {cons, Line, replace_variables_with_atoms(Element),
+     replace_variables_with_atoms(Rest)};
+replace_variables_with_atoms({tuple, Line, Elements}) ->
+    {tuple, Line, [replace_variables_with_atoms(El) || El <- Elements]};
+replace_variables_with_atoms({var, Line, Var}) ->
+    {atom, Line, Var};
+replace_variables_with_atoms(Else) ->
+    Else.
+
+
+same_cond(Cond, Cond) -> true;
 same_cond(Cond1, Cond2) ->
+    C2Data = replace_variables_with_atoms(Cond2),
+    M1 = [{match,1,
+           Cond1, C2Data}],
     ?LOG("Same Cond = ~p, ~p~n", [Cond1, Cond2]),
-    C2 = parse_cond(Cond2),
-    S1 = prepare_string(Cond1, C2),
-    case evaluate(S1) of
+    %% This should throw badmatch when the match fails
+    C2 = eval([C2Data]),
+    case eval(M1) of
         C2 ->
-            C1 = parse_cond(Cond1),
-            S2 = prepare_string(Cond2, C1),
-            case evaluate(S2) of
+            C1Data = replace_variables_with_atoms(Cond1),
+            C1 = eval([C1Data]),
+            M2 = [{match,1,
+                   Cond2, C1Data}],
+            case eval(M2) of
                 C1 -> true;
-                false -> false
+                _ -> false
             end;
-        false -> false
+        _ -> false
     end.
 
-parse_cond(L) ->
-    L1 = string:sub_string(L, 2, length(L) - 1),
-    A = to_elem(L1),
-    ?LOG("to_elem ~p --> ~p~n", [L1, A]),
-    list_to_tuple(A).
-
-to_elem([]) -> [];
-%% to tuple
-to_elem(L) when hd(L) == ${ ->
-    ElemStr = string:sub_string(L, 2),
-    {List, OtherStr} = to_elem(ElemStr),
-    T = list_to_tuple(List),
-    Other = to_elem(OtherStr),
-    E1 = [T] ++ Other,
-    E1;
-to_elem(L) when hd(L) == $[ ->
-    ElemStr = string:sub_string(L, 2),
-    {List, OtherStr} = to_elem(ElemStr),
-    Other = to_elem(OtherStr),
-    Li = [List] ++ Other,
-    Li;
-to_elem(L) when hd(L) == $, ->
-    L1 = string:sub_string(L, 2), to_elem(L1);
-to_elem(L) ->
-    Index1 = string:chr(L, $,),
-    Index2 = string:chr(L, $}),
-    Index3 = string:chr(L, $]),
-    Index4 = string:chr(L, $|),
-    if (Index4 /= 0) and (Index3 /= 0) and (Index1 == 0) ->
-            ElemStr = string:sub_string(L, 1, Index3),
-            OtherStr = string:sub_string(L, Index3 + 1),
-            {list_to_atom(lists:concat(["[", ElemStr])), OtherStr};
-       true -> to_elem(Index1, Index2, Index3, L)
-    end.
-
-to_elem(I1, I2, I3, L)
-  when I2 /= 0, (I2 < I1) or (I1 == 0),
-       (I2 < I3) or (I3 == 0) ->
-    %% the element of the last element of the tuple
-    ElemStr = string:sub_string(L, 1, I2 - 1),
-    OtherStr = string:sub_string(L, I2 + 1),
-    Elem = get_atom(ElemStr),
-    {[Elem], OtherStr};
-to_elem(I1, I2, I3, L)
-  when I3 /= 0, (I3 < I1) or (I1 == 0),
-       (I3 < I2) or (I2 == 0) ->
-    %% the element of the last erement of the list
-    ElemStr = string:sub_string(L, 1, I3 - 1),
-    OtherStr = string:sub_string(L, I3 + 1),
-    Elem = get_atom(ElemStr),
-    {[Elem], OtherStr};
-to_elem(I1, _I2, _I3, L) ->
-    {ElemStr, OtherStr} =
-        case I1 == 0 of
-            false ->
-                {string:sub_string(L, 1, I1 - 1),
-                 string:sub_string(L, I1 + 1)};
-            true ->
-                %% The last element
-                {L, []}
-        end,
-    Elem = [get_atom(ElemStr)],
-    case to_elem(OtherStr) of
-        {Other, Str} -> E = Elem ++ Other, {E, Str};
-        Other -> A = Elem ++ Other, A
-    end.
-%% @doc Takes as input a string of L-type = "{elem1, elem1, elemM}
-%% ..."  Returns the corresponding tuple ({elem1, elem2, elemN ...})
-%% Transforming the variables into atoms (X-> 'X')
-get_atom(X)
-  when hd(X) == $' ->    %'
-    L = length(X),
-    case lists:nth(L, X) of
-        39 ->
-            Sub = string:sub_string(X, 2, L - 1), list_to_atom(Sub);
-        _Other ->
-            erlang:throw({eresye, {missing, element, X}})
-    end;
-get_atom(X) -> X1 = string:strip(X), list_to_atom(X1).
-
-evaluate(String) ->
+eval(Expr) ->
     ?LOG("FUN = ~p~n", [String]),
-    {ok, Tokens, _} = erl_scan:string(String),
-    {ok, Expr} = erl_parse:parse_exprs(Tokens),
-    case catch erl_eval:exprs(Expr, erl_eval:new_bindings())
-    of
+    case catch erl_eval:exprs(Expr, erl_eval:new_bindings()) of
         {'EXIT', _} -> false;
         {value, Value, _Bindings} -> Value;
         _ -> false
     end.
 
-prepare_fun(_Cond, []) -> "nil.";
-prepare_fun(Cond, [Cond1 | T1]) when hd(Cond) == ${ ->
-    Str = lists:concat(["F=fun(", Cond, ",[", Cond1,
-                        string_tail(T1, []), "])->true end."]),
-    Str;
-prepare_fun([Cond | T], [Cond1 | T1]) ->
-    Str = lists:concat(["F=fun([", Cond, string_tail(T, []),
-                        "],[", Cond1, string_tail(T1, []), "])->true end."]),
-    Str.
+prepare_fun(_Cond, []) -> [{atom, 1, nil}];
+prepare_fun(Cond0, Cond1)
+  when not is_list(Cond0), is_list(Cond1) ->
+       [{'fun',1,
+         {clauses,
+          [{clause,1,
+            [Cond0,
+             prepare_rest(Cond1)],
+            [],
+            [{atom,1,true}]}]}}];
+prepare_fun(Cond0, Cond1)
+  when is_list(Cond0), is_list(Cond1) ->
+       [{'fun',1,
+         {clauses,
+          [{clause,1,
+            [prepare_rest(Cond0),
+             prepare_rest(Cond1)],
+            [],
+            [{atom,1,true}]}]}}].
 
-string_tail([], Str) -> Str;
-string_tail([C | OtherC], Str) ->
-    Str1 = lists:concat([Str, ",", C]),
-    string_tail(OtherC, Str1).
+prepare_rest([Element | Rest]) ->
+    {cons, 1, Element, prepare_rest(Rest)};
+prepare_rest([]) ->
+    {nil, 1}.
 
 %% @doc join_node entering any new updates in the beta-token memory
 update_new_node(EngineState0, Node, Parent_node, Join) ->
@@ -981,8 +896,8 @@ refresh([Node | OtherNode], Join, L) ->
 
 refresh(N, Join) -> refresh(N, Join, []).
 
-%% @doc WME is the match between the token and Tok and returns an empty list in case
-%% Negative or a new token (Tok + WME) if so
+%% @doc WME is the match between the token and Tok and returns an
+%% empty list in case Negative or a new token (Tok + WME) if so
 match(Wme, Tok, Join_fun) ->
     case catch Join_fun(Wme, Tok) of
         true -> Tok ++ [Wme];
@@ -999,13 +914,13 @@ append(Beta, {Fact, Sign}) ->
 
 %% @doc shares or create a join-node
 make_join_node(EngineState0, J, {new, Tab}, Cond, P, Parent_node) ->
-    Join_fun = evaluate(prepare_fun(Cond, P)),
+    Join_fun = eval(prepare_fun(Cond, P)),
     new_join(EngineState0, J, Tab, Join_fun, Parent_node);
 make_join_node(EngineState0, J, {old, Tab}, Cond, P, Parent_node) ->
     Result = eresye_tree_list:child(Tab, Parent_node, J),
     case Result of
         false ->
-            Join_fun = evaluate(prepare_fun(Cond, P)),
+            Join_fun = eval(prepare_fun(Cond, P)),
             new_join(EngineState0, J, Tab, Join_fun, Parent_node);
         Node -> {Node, J, EngineState0}
     end.

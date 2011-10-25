@@ -30,6 +30,11 @@
          print_repair/3, start/0,
          unsatisfactory_engine_state_conclusions/2]).
 
+-neg_rule({determine_engine_state, [{'working-state', engine, '__IGNORE_UNDERSCORE__'},
+                                    {repair, '__IGNORE_UNDERSCORE__'}]}).
+
+-include_lib("eresye/include/eresye.hrl").
+
 %% **********************
 %% * ENGINE STATE RULES *
 %% **********************
@@ -52,9 +57,7 @@ unsatisfactory_engine_state_conclusions(Engine,
 %% * QUERY RULES *
 %% ***************
 determine_engine_state(Engine, {start, _})
-  when not
-       ["{'working-state', engine, _}", "{repair, _}"];
-       true ->
+  when not {rule, [{'working-state', engine, _}, {repair, _}]} ->
     case ask_yn('Does the engine start (yes/no)? ') of
         true ->
             case ask_yn('Does the engine run normally (yes/no)? ')
@@ -74,8 +77,7 @@ determine_engine_state(Engine, {start, _})
 determine_rotation_state(Engine,
                          {'working-state', engine, 'does-not-start'})
   when not
-       ["{'rotation-state', engine, _}", "{repair, _}"];
-       true ->
+       {rule, [{'rotation-state', engine, _}, {repair, _}]} ->
     case ask_yn('Does the engine rotate (yes/no)? ') of
         true ->
             eresye_engine:assert(Engine,
@@ -89,7 +91,7 @@ determine_rotation_state(Engine,
 
 determine_sluggishness(Engine,
                        {'working-state', engine, unsatisfactory})
-  when not ["{repair, _}"]; true ->
+  when not {rule, [{repair, _}]} ->
     case ask_yn('Is the engine sluggish (yes/no)? ') of
         true ->
             eresye_engine:assert(Engine, {repair, "Clean the fuel line."});
@@ -98,7 +100,7 @@ determine_sluggishness(Engine,
 
 determine_misfiring(Engine,
                     {'working-state', engine, unsatisfactory})
-  when not ["{repair, _}"]; true ->
+  when not {rule, [{repair, _}]} ->
     case ask_yn('Does the engine misfire (yes/no)? ') of
         true ->
             eresye_engine:assert(Engine,
@@ -109,7 +111,7 @@ determine_misfiring(Engine,
 
 determine_knocking(E,
                    {'working-state', engine, unsatisfactory})
-  when not ["{repair, _}"]; true ->
+  when not {rule, [{repair, _}]} ->
     case ask_yn('Does the engine knock (yes/no)? ') of
         true ->
             eresye_engine:assert(E, {repair, "Timing adjustment."});
@@ -118,8 +120,7 @@ determine_knocking(E,
 
 determine_low_output(E,
                      {'working-state', engine, unsatisfactory})
-  when not ["{symptom, engine, _}", "{repair, _}"];
-       true ->
+  when not {rule, [{symptom, engine, _}, {repair, _}]} ->
     case
         ask_yn('Is the output of the engine low (yes/no)? ')
     of
@@ -132,7 +133,7 @@ determine_low_output(E,
 determine_gas_level(E,
                     {'working-state', engine, 'does-not-start'},
                     {'rotation-state', engine, rotates})
-  when not ["{repair, _}"]; true ->
+  when not {rule, [{repair, _}]} ->
     case
         ask_yn('Does the tank have any gas in it (yes/no)? ')
     of
@@ -143,8 +144,7 @@ determine_gas_level(E,
 determine_battery_state(E,
                         {'rotation-state', engine, 'does-not-rotate'})
   when not
-       ["{'charge-state', battery, _}", "{repair, _}"];
-       true ->
+       {rule, [{'charge-state', battery, _}, {repair, _}]} ->
     case ask_yn('Is the battery charged (yes/no)? ') of
         true ->
             eresye_engine:assert(E, {'charge-state', battery, charged});
@@ -157,12 +157,12 @@ determine_battery_state(E,
 determine_point_surface_state_1(E,
                                 {'working-state', engine, 'does-not-start'},
                                 {'spark-state', engine, 'irregular-spark'})
-  when not ["{repair, _}"]; true ->
+  when not {rule, [{repair, _}]} ->
     dpss(E).
 
 determine_point_surface_state_2(E,
                                 {symptom, engine, 'low-output'})
-  when not ["{repair, _}"]; true ->
+  when not {rule, [{repair, _}]} ->
     dpss(E).
 
 dpss(E) ->
@@ -180,7 +180,7 @@ determine_conductivity_test(E,
                             {'working-state', engine, 'does-not-start'},
                             {'spark-state', engine, 'does-not-spark'},
                             {'charge-state', battery, charged})
-  when not ["{repair, _}"]; true ->
+  when not {rule, [{repair, _}]}; true ->
     case
         ask_yn('Is the conductivity test for the ignition coil positive (yes/no)? ')
     of
@@ -192,7 +192,7 @@ determine_conductivity_test(E,
     end.
 
 no_repairs(E, {start, _})
-  when not ["{repair, _}"]; true ->
+  when not {rule, [{repair, _}]}, true ->
     eresye_engine:assert(E,
                          {repair, "Take your car to a mechanic."}).
 
