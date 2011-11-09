@@ -376,9 +376,13 @@ extract_parameters([Condition | Tail], RecordList, Acc) ->
 %% for equality
 remove_line_numbers(Values) when is_list(Values) ->
     lists:map(fun remove_line_numbers/1, Values);
+remove_line_numbers({op, _, Op, T1, T2}) ->
+    {op, 0, Op, remove_line_numbers(T1), remove_line_numbers(T2)};
 remove_line_numbers({Type, L})
     when is_integer(L), is_atom(Type) ->
     {Type, 0};
+remove_line_numbers({string, _, String}) ->
+    {string, 0, String};
 remove_line_numbers({Type, L, Values})
   when is_integer(L), is_atom(Type), is_list(Values) ->
     {Type, 0, lists:map(fun remove_line_numbers/1, Values)};
@@ -859,8 +863,8 @@ test_nnode(EngineState0, [Tok | OtherTok], IdNpNode, Join_fun,
            Join_node, Join) ->
     {Join1, EngineState1} = left_act_nnode(EngineState0, Tok, IdNpNode,
                                            Join_fun, [Join_node], Join),
-    test_nnode(OtherTok, IdNpNode, Join_fun, Join_node,
-               Join1, EngineState1).
+    test_nnode(EngineState1, OtherTok, IdNpNode, Join_fun, Join_node,
+               Join1).
 
 
 %% @doc WME compares with the new all tokens in the beta-memory Parent
