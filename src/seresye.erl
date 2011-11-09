@@ -1,4 +1,4 @@
-%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%  SERESYE, a Swarm oriented ERlang Expert SYstem Engine
 %%%
 %%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
 %%% All rights reserved.
@@ -6,7 +6,7 @@
 %%% You may use this file under the terms of the BSD License. See the
 %%% license distributed with this project or
 %%% http://www.opensource.org/licenses/bsd-license.php
--module(eresye).
+-module(seresye).
 
 %%====================================================================
 %% External exports
@@ -25,10 +25,10 @@
 %% External functions
 %%====================================================================
 start(Name) ->
-    eresye_sup:start_engine(Name).
+    seresye_sup:start_engine(Name).
 
 start(Name, ClientState) ->
-    eresye_sup:start_engine(Name, ClientState).
+    seresye_sup:start_engine(Name, ClientState).
 
 set_client_state(Name, NewState) ->
     gen_server:cast(Name, {set_client_state, NewState}).
@@ -87,15 +87,15 @@ start_link(ClientState, Name) when is_atom(Name) ->
 
 
 init([]) ->
-    {ok, eresye_engine:new()};
+    {ok, seresye_engine:new()};
 init([ClientState]) ->
-    {ok, eresye_engine:new(ClientState)}.
+    {ok, seresye_engine:new(ClientState)}.
 
 
 handle_call(get_client_state, _From, State) ->
     Reply =
         try
-            {ok, eresye_engine:get_client_state(State)}
+            {ok, seresye_engine:get_client_state(State)}
         catch
             Type:Reason ->
                 {error, {Type, Reason}}
@@ -106,7 +106,7 @@ handle_call(stop, _From, State) ->
 handle_call({assert, Facts}, _From, State0) ->
     {Reply, State1} =
         try
-            {ok, eresye_engine:assert(State0, Facts)}
+            {ok, seresye_engine:assert(State0, Facts)}
         catch
             Type:Reason ->
                 {{error, {Type, Reason}}, State0}
@@ -115,7 +115,7 @@ handle_call({assert, Facts}, _From, State0) ->
 handle_call({retract, Facts}, _From, State0) ->
     {Reply, State1} =
         try
-            {ok, eresye_engine:retract(State0, Facts)}
+            {ok, seresye_engine:retract(State0, Facts)}
         catch
             Type:Reason ->
                 {{error, {Type, Reason}}, State0}
@@ -124,7 +124,7 @@ handle_call({retract, Facts}, _From, State0) ->
 handle_call({add_rules, Rules}, _From, State0) ->
     {Reply, State1} =
         try
-            {ok, eresye_engine:add_rules(State0, Rules)}
+            {ok, seresye_engine:add_rules(State0, Rules)}
         catch
             Type:Reason ->
                 {{error, {Type, Reason}}, State0}
@@ -133,7 +133,7 @@ handle_call({add_rules, Rules}, _From, State0) ->
 handle_call({add_rule, Rule}, _From, State0) ->
     {Reply, State1} =
         try
-            {ok, eresye_engine:add_rule(State0, Rule)}
+            {ok, seresye_engine:add_rule(State0, Rule)}
         catch
             Type:Reason ->
                 {{error, {Type, Reason}}, State0}
@@ -142,7 +142,7 @@ handle_call({add_rule, Rule}, _From, State0) ->
 handle_call({add_rule, Rule, Salience}, _From, State0) ->
     {Reply, State1} =
         try
-            {ok, eresye_engine:add_rule(State0, Rule, Salience)}
+            {ok, seresye_engine:add_rule(State0, Rule, Salience)}
         catch
             Type:Reason ->
                 {{error, {Type, Reason}}, State0}
@@ -151,7 +151,7 @@ handle_call({add_rule, Rule, Salience}, _From, State0) ->
 handle_call({remove_rule, Rule}, _From, State0) ->
     {Reply, State1} =
         try
-            {ok, eresye_engine:remove_rule(State0, Rule)}
+            {ok, seresye_engine:remove_rule(State0, Rule)}
         catch
             Type:Reason ->
                 {{error, {Type, Reason}}, State0}
@@ -160,7 +160,7 @@ handle_call({remove_rule, Rule}, _From, State0) ->
 handle_call(get_rules_fired, _From, State0) ->
     Reply =
         try
-            eresye_engine:get_rules_fired(State0)
+            seresye_engine:get_rules_fired(State0)
         catch
             Type:Reason ->
                 {error, {Type, Reason}}
@@ -171,7 +171,7 @@ handle_call(get_engine, _From, State0) ->
 handle_call(get_kb, _From, State0) ->
     Reply =
         try
-            eresye_engine:get_kb(State0)
+            seresye_engine:get_kb(State0)
         catch
             Type:Reason ->
                 {error, {Type, Reason}}
@@ -180,7 +180,7 @@ handle_call(get_kb, _From, State0) ->
 handle_call(query_kb, _From, State0) ->
     Reply =
         try
-            eresye_engine:query_kb(State0)
+            seresye_engine:query_kb(State0)
         catch
             Type:Reason ->
                 {error, {Type, Reason}}
@@ -188,7 +188,7 @@ handle_call(query_kb, _From, State0) ->
     {reply, Reply, State0}.
 
 handle_cast({set_client_state, CS}, State) ->
-    {noreply, eresye_engine:set_client_state(State, CS)}.
+    {noreply, seresye_engine:set_client_state(State, CS)}.
 
 handle_info(_Info, State) ->
     {noreply, State}.

@@ -6,12 +6,12 @@
 %%% You may use this file under the terms of the BSD License. See the
 %%% license distributed with this project or
 %%% http://www.opensource.org/licenses/bsd-license.php
--module(eresyee_prodcons).
+-module(seresye_prodcons).
 
 -export([start/0, prod/1, cons/1, cons_1/1]).
 
 start() ->
-    application:start(eresye),
+    application:start(seresye),
     eresye:start(pc),
     spawn(prodcons, cons_1, [1]),
     spawn(prodcons, cons_1, [2]),

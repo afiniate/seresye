@@ -1,4 +1,4 @@
-%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%  SERESYE, an ERlang Expert SYstem Engine
 %%%
 %%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
 %%% All rights reserved.
@@ -17,7 +17,7 @@
 %%%
 %%%     To execute, type 'auto:start().'
 %%% ======================================================
--module(eresyee_auto).
+-module(seresyee_auto).
 
 -export([determine_battery_state/2,
          determine_conductivity_test/4, determine_engine_state/2,
@@ -33,14 +33,14 @@
 -neg_rule({determine_engine_state, [{'working-state', engine, '__IGNORE_UNDERSCORE__'},
                                     {repair, '__IGNORE_UNDERSCORE__'}]}).
 
--include_lib("eresye/include/eresye.hrl").
+-include_lib("seresye/include/seresye.hrl").
 
 %% **********************
 %% * ENGINE STATE RULES *
 %% **********************
 normal_engine_state_conclusions(Engine,
                                 {'working-state', engine, normal}) ->
-    eresye_engine:assert(Engine,
+    seresye_engine:assert(Engine,
                          [{repair, "No repair needed."},
                           {'spark-state', engine, normal},
                           {'charge-state', battery, charged},
@@ -49,7 +49,7 @@ normal_engine_state_conclusions(Engine,
 unsatisfactory_engine_state_conclusions(Engine,
                                         {'working-state', engine,
                                          unsatisfactory}) ->
-    eresye_engine:assert(Engine,
+    seresye_engine:assert(Engine,
                          [{'charge-state', battery, charged},
                           {'rotation-state', engine, rotates}]).
 
@@ -63,14 +63,14 @@ determine_engine_state(Engine, {start, _})
             case ask_yn('Does the engine run normally (yes/no)? ')
             of
                 true ->
-                    eresye_engine:assert(Engine,
+                    seresye_engine:assert(Engine,
                                          {'working-state', engine, normal});
                 _ ->
-                    eresye_engine:assert(Engine,
+                    seresye_engine:assert(Engine,
                                          {'working-state', engine, unsatisfactory})
             end;
         _ ->
-            eresye_engine:assert(Engine,
+            seresye_engine:assert(Engine,
                                  {'working-state', engine, 'does-not-start'})
     end.
 
@@ -80,11 +80,11 @@ determine_rotation_state(Engine,
        {rule, [{'rotation-state', engine, _}, {repair, _}]} ->
     case ask_yn('Does the engine rotate (yes/no)? ') of
         true ->
-            eresye_engine:assert(Engine,
+            seresye_engine:assert(Engine,
                                  [{'rotation-state', engine, rotates},
                                   {'spark-state', engine, 'irregular-spark'}]);
         _ ->
-            eresye_engine:assert(Engine,
+            seresye_engine:assert(Engine,
                                  [{'rotation-state', engine, 'does-not-rotate'},
                                   {'spark-state', engine, 'does-not-spark'}])
     end.
@@ -94,7 +94,7 @@ determine_sluggishness(Engine,
   when not {rule, [{repair, _}]} ->
     case ask_yn('Is the engine sluggish (yes/no)? ') of
         true ->
-            eresye_engine:assert(Engine, {repair, "Clean the fuel line."});
+            seresye_engine:assert(Engine, {repair, "Clean the fuel line."});
         _ -> Engine
     end.
 
@@ -103,7 +103,7 @@ determine_misfiring(Engine,
   when not {rule, [{repair, _}]} ->
     case ask_yn('Does the engine misfire (yes/no)? ') of
         true ->
-            eresye_engine:assert(Engine,
+            seresye_engine:assert(Engine,
                                  [{repair, "Point gap adjustment."},
                                   {'spark-state', engine, 'irregular-spark'}]);
         _ -> Engine
@@ -114,7 +114,7 @@ determine_knocking(E,
   when not {rule, [{repair, _}]} ->
     case ask_yn('Does the engine knock (yes/no)? ') of
         true ->
-            eresye_engine:assert(E, {repair, "Timing adjustment."});
+            seresye_engine:assert(E, {repair, "Timing adjustment."});
         _ -> E
     end.
 
@@ -125,9 +125,9 @@ determine_low_output(E,
         ask_yn('Is the output of the engine low (yes/no)? ')
     of
         true ->
-            eresye_engine:assert(E, {symptom, engine, 'low-output'});
+            seresye_engine:assert(E, {symptom, engine, 'low-output'});
         _ ->
-            eresye_engine:assert(E, {symptom, engine, 'not-low-output'})
+            seresye_engine:assert(E, {symptom, engine, 'not-low-output'})
     end.
 
 determine_gas_level(E,
@@ -137,7 +137,7 @@ determine_gas_level(E,
     case
         ask_yn('Does the tank have any gas in it (yes/no)? ')
     of
-        false -> eresye_engine:assert(E, {repair, "Add gas."});
+        false -> seresye_engine:assert(E, {repair, "Add gas."});
         _ -> E
     end.
 
@@ -147,9 +147,9 @@ determine_battery_state(E,
        {rule, [{'charge-state', battery, _}, {repair, _}]} ->
     case ask_yn('Is the battery charged (yes/no)? ') of
         true ->
-            eresye_engine:assert(E, {'charge-state', battery, charged});
+            seresye_engine:assert(E, {'charge-state', battery, charged});
         _ ->
-            eresye_engine:assert(E,
+            seresye_engine:assert(E,
                                  [{repair, "Charge the battery."},
                                   {'charge-state', battery, dead}])
     end.
@@ -170,9 +170,9 @@ dpss(E) ->
         ask_question('What is the surface state of the points (normal/burned/contaminated)? ')
     of
         [$b, $u, $r, $n, $e, $d | _] ->
-            eresye_engine:assert(E, {repair, "Replace the points."});
+            seresye_engine:assert(E, {repair, "Replace the points."});
         [$c, $o, $n, $t, $a, $m, $i, $n, $a, $t, $e, $d | _] ->
-            eresye_engine:assert(E, {repair, "Clean the points."});
+            seresye_engine:assert(E, {repair, "Clean the points."});
         _ -> E
     end.
 
@@ -185,15 +185,15 @@ determine_conductivity_test(E,
         ask_yn('Is the conductivity test for the ignition coil positive (yes/no)? ')
     of
         true ->
-            eresye_engine:assert(E,
+            seresye_engine:assert(E,
                                  {repair, "Repair the distributor lead wire."});
         _ ->
-            eresye_engine:assert(E, {repair, "Replace the ignition coil."})
+            seresye_engine:assert(E, {repair, "Replace the ignition coil."})
     end.
 
 no_repairs(E, {start, _})
   when not {rule, [{repair, _}]}, true ->
-    eresye_engine:assert(E,
+    seresye_engine:assert(E,
                          {repair, "Take your car to a mechanic."}).
 
 print_repair(E, {repair, X}, {start, _}) ->
@@ -209,10 +209,10 @@ ask_yn(Prompt) ->
 ask_question(Prompt) -> io:get_line(Prompt).
 
 start() ->
-    Engine0 = eresye_engine:new(),
+    Engine0 = seresye_engine:new(),
     %% Rules with high priority (10)
     Engine2 = lists:foldl(fun (Rule, Engine1) ->
-                                  eresye_engine:add_rule(Engine1, {?MODULE, Rule}, 10)
+                                  seresye_engine:add_rule(Engine1, {?MODULE, Rule}, 10)
                           end,
                           Engine0,
                           [normal_engine_state_conclusions,
@@ -220,7 +220,7 @@ start() ->
                            print_repair]),
     %% Rules with normal priority (0)
     Engine3 = lists:foldl(fun (Rule, Engine1) ->
-                                  eresye_engine:add_rule(Engine1, {?MODULE, Rule})
+                                  seresye_engine:add_rule(Engine1, {?MODULE, Rule})
                           end,
                           Engine2,
                           [determine_engine_state, determine_rotation_state,
@@ -231,6 +231,6 @@ start() ->
                            determine_point_surface_state_2,
                            determine_conductivity_test]),
     %% Rules with low priority (-10)
-    Engine4 = eresye_engine:add_rule(Engine3,
+    Engine4 = seresye_engine:add_rule(Engine3,
                                      {?MODULE, no_repairs}, -10),
-    eresye_engine:assert(Engine4, {start, ok}).
+    seresye_engine:assert(Engine4, {start, ok}).

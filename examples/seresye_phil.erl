@@ -1,4 +1,4 @@
-%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%  SERESYE, an ERlang Expert SYstem Engine
 %%%
 %%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
 %%% All rights reserved.
@@ -6,23 +6,23 @@
 %%% You may use this file under the terms of the BSD License. See the
 %%% license distributed with this project or
 %%% http://www.opensource.org/licenses/bsd-license.php%
--module(eresyee_phil).
+-module(seresye_phil).
 
 -export([start/0, phil_spawn/1, philosopher/2, think/1, eat/1]).
 
 -define(N_PHIL, 5).
 
 start() ->
-    application:start(eresye),
-    eresye:start(restaurant),
+    application:start(seresye),
+    seresye:start(restaurant),
     phil_spawn(0).
 
 phil_spawn(?N_PHIL) -> ok;
 phil_spawn(N) ->
-    eresye:assert(restaurant, {fork, N}),
+    seresye:assert(restaurant, {fork, N}),
     spawn(phil, philosopher, [N, init]),
     if N < (?N_PHIL) - 1 ->
-           eresye:assert(restaurant, {room_ticket, N});
+           seresye:assert(restaurant, {room_ticket, N});
        true -> ok
     end,
     phil_spawn(N + 1).
@@ -30,16 +30,16 @@ phil_spawn(N) ->
 philosopher(N, init) -> new_seed(), philosopher(N, ok);
 philosopher(N, X) ->
     think(N),
-    Ticket = eresye:wait_and_retract(restaurant,
+    Ticket = seresye:wait_and_retract(restaurant,
                                      {room_ticket, '_'}),
-    eresye:wait_and_retract(restaurant, {fork, N}),
-    eresye:wait_and_retract(restaurant,
+    seresye:wait_and_retract(restaurant, {fork, N}),
+    seresye:wait_and_retract(restaurant,
                             {fork, (N + 1) rem (?N_PHIL)}),
     eat(N),
-    eresye:assert(restaurant, {fork, N}),
-    eresye:assert(restaurant,
+    seresye:assert(restaurant, {fork, N}),
+    seresye:assert(restaurant,
                   {fork, (N + 1) rem (?N_PHIL)}),
-    eresye:assert(restaurant, Ticket),
+    seresye:assert(restaurant, Ticket),
     philosopher(N, X).
 
 think(N) ->

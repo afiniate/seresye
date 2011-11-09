@@ -1,4 +1,4 @@
-%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%  SERESYE, a Swarm oriented ERlang Expert SYstem Engine
 %%%
 %%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
 %%% All rights reserved.
@@ -20,8 +20,7 @@
 %%%     provided in CLIPS Version 6.0
 %%%
 %%% ======================================================
-
--module (eresyet_cannibals).
+-module (seresyet_cannibals).
 
 -export([shore_1_move/3,
          shore_2_move/3,
@@ -81,7 +80,7 @@ shore_1_move (Engine0,
                                       'shore-2-cannibals' = Cannibals + S2C,
                                       'boat-location' = 'shore-2'},
 
-                        eresye_engine:assert(Engine2, NewNode)
+                        seresye_engine:assert(Engine2, NewNode)
                 end,
                 Engine1,
                 for (MinCannibals, MaxCannibals))
@@ -116,7 +115,7 @@ shore_2_move (Engine0,
                                       'shore-2-missionaries' =  S2M - Missionaries,
                                       'shore-2-cannibals' = S2C - Cannibals,
                                       'boat-location' = 'shore-1'},
-                        eresye_engine:assert (Engine2, NewNode)
+                        seresye_engine:assert (Engine2, NewNode)
                 end,
                 Engine1,
                 for (MinCannibals, MaxCannibals))
@@ -134,7 +133,7 @@ cannibals_eat_missionaries (Engine0,
     if
         ((S2C > S2M) and (S2M =/= 0)) or ((S1C > S1M) and (S1M =/= 0)) ->
             %%io:format ("Invalid ~p~n", [Node]),
-            eresye_engine:retract (Engine0, Node);
+            seresye_engine:retract (Engine0, Node);
         true -> Engine0
     end.
 
@@ -153,7 +152,7 @@ circular_path  (Engine0,
                          'shore-2-missionaries' = S2M,
                          'shore-2-cannibals' = S2C} = Node) ->
     if
-        SD1 < SD2 -> eresye_engine:retract (Engine0, Node);
+        SD1 < SD2 -> seresye_engine:retract (Engine0, Node);
         true -> Engine0
     end.
 
@@ -163,26 +162,26 @@ recognize_solution (Engine0,
                              'shore-2-cannibals' = C} = Node) ->
     if
         (M == ?INITIAL_MISSIONARIES) and (C == ?INITIAL_CANNIBALS) ->
-            Engine1 = eresye_engine:retract (Engine0, Node),
-            eresye_engine:set_client_state(Engine1, Node);
+            Engine1 = seresye_engine:retract (Engine0, Node),
+            seresye_engine:set_client_state(Engine1, Node);
         true -> Engine0
     end.
 
 rules_test() ->
-    Engine0 = eresye_engine:new(),
-    Engine2 = eresye_engine:add_rules(Engine0, ?MODULE),
+    Engine0 = seresye_engine:new(),
+    Engine2 = seresye_engine:add_rules(Engine0, ?MODULE),
 
     Engine3 =
-        eresye_engine:assert (Engine2,
-                       #status {'search-depth' =  1,
-                                'parent' =  'no-parent',
-                                'shore-1-missionaries' = ?INITIAL_MISSIONARIES,
-                                'shore-2-missionaries' = 0,
-                                'shore-1-cannibals' = ?INITIAL_CANNIBALS,
-                                'shore-2-cannibals' = 0,
-                                'boat-location' = 'shore-1'}),
-    Engine4 = eresye_engine:assert (Engine3, {'boat-can-host', 2}),
-    P = eresye_engine:get_client_state(Engine4),
+        seresye_engine:assert (Engine2,
+                               #status {'search-depth' =  1,
+                                        'parent' =  'no-parent',
+                                        'shore-1-missionaries' = ?INITIAL_MISSIONARIES,
+                                        'shore-2-missionaries' = 0,
+                                        'shore-1-cannibals' = ?INITIAL_CANNIBALS,
+                                        'shore-2-cannibals' = 0,
+                                        'boat-location' = 'shore-1'}),
+    Engine4 = seresye_engine:assert (Engine3, {'boat-can-host', 2}),
+    P = seresye_engine:get_client_state(Engine4),
     verify_result(P).
 
 verify_result(Node = #status{'shore-2-missionaries'=S2M,
@@ -195,10 +194,9 @@ verify_result_(#status{'parent' =  'no-parent'}) ->
     ok;
 verify_result_(#status{'parent' =  Parent,
                        'shore-1-missionaries'=S1M,
-                      'shore-1-cannibals'=S1C,
-                      'shore-2-missionaries'=S2M,
-                      'shore-2-cannibals'=S2C}) ->
+                       'shore-1-cannibals'=S1C,
+                       'shore-2-missionaries'=S2M,
+                       'shore-2-cannibals'=S2C}) ->
     ?assertMatch(true, (S1M >= S1C orelse S1M == 0)),
     ?assertMatch(true, (S2M >= S2C orelse S2M == 0)),
     verify_result_(Parent).
-

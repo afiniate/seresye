@@ -1,12 +1,13 @@
-%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%  SERESYE, a Swarm oriented ERlang Expert SYstem Engine
 %%%
 %%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
+%%% Copyright (c) 2011 Afiniate, Inc.
 %%% All rights reserved.
 %%%
 %%% You may use this file under the terms of the BSD License. See the
 %%% license distributed with this project or
 %%% http://www.opensource.org/licenses/bsd-license.php
--module(eresye_app).
+-module(seresye_app).
 
 -behaviour(application).
 
@@ -18,7 +19,7 @@
 %%%===================================================================
 
 start(_StartType, _StartArgs) ->
-    case eresye_sup:start_link() of
+    case seresye_sup:start_link() of
         {ok, Pid} ->
             {ok, Pid};
         Error ->
@@ -27,4 +28,3 @@ start(_StartType, _StartArgs) ->
 
 stop(_State) ->
     ok.
-

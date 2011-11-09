@@ -1,4 +1,12 @@
--module(eresye_autoneg).
+%%%  SERESYE, a Swarm oriented ERlang Expert SYstem Engine
+%%%
+%%% Copyright (c) 2011, Afiniate, Inc.
+%%% All rights reserved.
+%%%
+%%% You may use this file under the terms of the BSD License. See the
+%%% license distributed with this project or
+%%% http://www.opensource.org/licenses/bsd-license.php
+-module(seresye_autoneg).
 
 -export([parse_transform/2]).
 
@@ -21,7 +29,6 @@ parse_forms({function,Line,FunName, Arity, Clauses0}, {Head, Attrs0, Body}) ->
                                      [{ClauseCount, NewDetail} | Attrs1]}
                             end
                 end, {0, [], []}, Clauses0),
-
 
     {Head, lists:map(fun({CC, Detail0}) ->
                              {attribute, Line, rule_neg, {FunName, CC, Detail0}}

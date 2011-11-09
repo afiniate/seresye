@@ -1,12 +1,13 @@
-%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%  SERESYE, a Swarm oriented ERlang Expert SYstem Engine
 %%%
 %%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
 %%% All rights reserved.
+%%% Copyright (c) 2011, Afiniate, Inc.
 %%%
 %%% You may use this file under the terms of the BSD License. See the
 %%% license distributed with this project or
 %%% http://www.opensource.org/licenses/bsd-license.php
--module(eresye_sup).
+-module(seresye_sup).
 
 -behaviour(supervisor).
 
@@ -45,7 +46,7 @@ init([]) ->
     Shutdown = 2000,
     Type = worker,
 
-    AChild = {eresye, {eresye, start_link, []},
-              Restart, Shutdown, Type, [eresye]},
+    AChild = {seresye, {seresye, start_link, []},
+              Restart, Shutdown, Type, [seresye]},
 
     {ok, {SupFlags, [AChild]}}.

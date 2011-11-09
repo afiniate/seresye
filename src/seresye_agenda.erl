@@ -1,12 +1,13 @@
-%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%  SERESYE, a Swarm oriented ERlang Expert SYstem Engine
 %%%
 %%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
+%%% Copyright (c) 2011 Afiniate, Inc.
 %%% All rights reserved.
 %%%
 %%% You may use this file under the terms of the BSD License. See the
 %%% license distributed with this project or
 %%% http://www.opensource.org/licenses/bsd-license.php
--module(eresye_agenda).
+-module(seresye_agenda).
 
 -export([new/1, add_activation/3, add_activation/4,
          breadth_order/2, clear_agenda/1, delete_activation/2,
@@ -26,8 +27,8 @@
 %%====================================================================
 %% External functions
 %%====================================================================
-new(Eresye) ->
-    Eresye#eresye{agenda=#agenda{rules_fired=0,
+new(Seresye) ->
+    Seresye#seresye{agenda=#agenda{rules_fired=0,
                                  strategy=depth,
                                  rule_list=[],
                                  exec_state=nil,
@@ -37,7 +38,7 @@ new(Eresye) ->
 add_activation(Agenda, Rule, Args) ->
     add_activation(Agenda, Rule, Args, 0).
 
-add_activation(EngineState0 = #eresye{agenda=
+add_activation(EngineState0 = #seresye{agenda=
                                           Agenda0 = #agenda{strategy=Strategy,
                                                             rule_list=RuleList0,
                                                             id=Id}},
@@ -52,18 +53,18 @@ add_activation(EngineState0 = #eresye{agenda=
                   end,
     Agenda1 = Agenda0#agenda{rule_list=RuleList1, id=Id + 1},
 
-    execute_pending(after_activation_schedule(EngineState0#eresye{agenda=Agenda1})).
+    execute_pending(after_activation_schedule(EngineState0#seresye{agenda=Agenda1})).
 
 
 %% @doc Remove all activation from Agenda,
 %% returns an empty agenda with same past strategy
-clear_agenda(EngineState = #eresye{agenda=Agenda0}) ->
-    EngineState#eresye{agenda=Agenda0#agenda{rule_list=[], id=0}}.
+clear_agenda(EngineState = #seresye{agenda=Agenda0}) ->
+    EngineState#seresye{agenda=Agenda0#agenda{rule_list=[], id=0}}.
 
-get_strategy(#eresye{agenda=#agenda{strategy=Strategy}}) ->
+get_strategy(#seresye{agenda=#agenda{strategy=Strategy}}) ->
     Strategy.
 
-set_strategy(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}}, NewStrategy) ->
+set_strategy(EngineState = #seresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}}, NewStrategy) ->
     RuleList1 = case NewStrategy of
                     depth ->
                         lists:sort(fun depth_order/2, RuleList0);
@@ -73,38 +74,38 @@ set_strategy(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}
                     fifo ->
                         lists:sort(fun fifo_order/2, RuleList0);
                     _ ->
-                        erlang:throw({eresye, {invalid_strategy, NewStrategy}})
+                        erlang:throw({seresye, {invalid_strategy, NewStrategy}})
 
                 end,
-    EngineState#eresye{agenda=Agenda0#agenda{strategy=NewStrategy, rule_list=RuleList1}}.
+    EngineState#seresye{agenda=Agenda0#agenda{strategy=NewStrategy, rule_list=RuleList1}}.
 
-get_rules_fired(#eresye{agenda=#agenda{rules_fired=Fired}}) ->
+get_rules_fired(#seresye{agenda=#agenda{rules_fired=Fired}}) ->
     Fired.
 
 %% @doc Remove activation with id='Id' or
 %% all activation whose id is in the list passed as argument
 delete_activation(EngineState, []) -> EngineState;
-delete_activation(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}},
+delete_activation(EngineState = #seresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}},
                  Id)
   when not is_list(Id) ->
-    EngineState#eresye{agenda=Agenda0#agenda{rule_list=lists:keydelete(Id, 4, RuleList0)}};
+    EngineState#seresye{agenda=Agenda0#agenda{rule_list=lists:keydelete(Id, 4, RuleList0)}};
 delete_activation(EngineState, [Id | OtherId]) ->
     EngineState1 = delete_activation(EngineState, Id),
     delete_activation(EngineState1, OtherId).
 
 %% @doc Remove all activation associated with rule 'Rule' from the agenda,
 %% returns the modified agenda
-delete_rule(EngineState = #eresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}}, Rule) ->
+delete_rule(EngineState = #seresye{agenda=Agenda0 = #agenda{rule_list=RuleList0}}, Rule) ->
     ActList = proplists:lookup_all(Rule, RuleList0),
     RuleList1 = lists:foldl(fun (X, R1) ->
                                     lists:delete(X, R1)
                             end,
                             RuleList0, ActList),
-    EngineState#eresye{agenda=Agenda0#agenda{rule_list=RuleList1}}.
+    EngineState#seresye{agenda=Agenda0#agenda{rule_list=RuleList1}}.
 
 %% @doc Returns the Id of activation associated to rule 'Rule' and
 %% arguments 'Args', false if it not present
-get_activation(#eresye{agenda=#agenda{rule_list=RuleList0}}, {Rule, Args}) ->
+get_activation(#seresye{agenda=#agenda{rule_list=RuleList0}}, {Rule, Args}) ->
     ActList = proplists:lookup_all(Rule, RuleList0),
     case lists:keysearch(Args, 2, ActList) of
         {value, {_, _, _, Id}} -> Id;
@@ -113,7 +114,7 @@ get_activation(#eresye{agenda=#agenda{rule_list=RuleList0}}, {Rule, Args}) ->
 
 %% @doc Returns the Id of first activation associated to rule 'Rule',
 %% false if 'Rule' is not present in the agenda
-get_activation_from_name(#eresye{agenda=#agenda{rule_list=RuleList0}}, Rule) ->
+get_activation_from_name(#seresye{agenda=#agenda{rule_list=RuleList0}}, Rule) ->
     case lists:keysearch(Rule, 1, RuleList0) of
         {value, {_, _, _, Id}} -> Id;
         false -> false
@@ -121,12 +122,12 @@ get_activation_from_name(#eresye{agenda=#agenda{rule_list=RuleList0}}, Rule) ->
 
 %% @doc Return the Id associated to first activation in the agenda
 %% false if agenda is empty
-get_first_activation(#eresye{agenda=#agenda{rule_list=[First | _]}}) ->
+get_first_activation(#seresye{agenda=#agenda{rule_list=[First | _]}}) ->
     element(4, First).
 
 %% @doc Return the salience value of activation with id='Id'
 %% false if Id is not present in the agenda
-get_activation_salience(#eresye{agenda=#agenda{rule_list=RuleList0, id=NextId}}, Id) ->
+get_activation_salience(#seresye{agenda=#agenda{rule_list=RuleList0, id=NextId}}, Id) ->
     case NextId < Id of
         true -> false;
         false ->
@@ -139,7 +140,7 @@ get_activation_salience(#eresye{agenda=#agenda{rule_list=RuleList0, id=NextId}},
 %% @doc Sets the salience value of activation with id='Id',
 %% returns the modified agenda
 set_activation_salience(EngineState =
-                            #eresye{agenda=Agenda0 =
+                            #seresye{agenda=Agenda0 =
                                         #agenda{rule_list=RuleList0, strategy=Strategy}}, Id, NewSalience)
   when is_number(NewSalience) and not is_list(Id) ->
     RuleList2 =
@@ -151,10 +152,10 @@ set_activation_salience(EngineState =
             false ->
                 RuleList0
         end,
-    EngineState#eresye{agenda=Agenda0#agenda{rule_list=RuleList2}};
+    EngineState#seresye{agenda=Agenda0#agenda{rule_list=RuleList2}};
 set_activation_salience(_EngineState, Id, NewSalience)
   when not is_list(Id) ->
-    erlang:throw({eresye, {invalid_salience, NewSalience}});
+    erlang:throw({seresye, {invalid_salience, NewSalience}});
 set_activation_salience(EngineState0, [Id | OtherId],
                         NewSalience) ->
     EngineState1 = set_activation_salience(EngineState0, Id, NewSalience),
@@ -163,7 +164,7 @@ set_activation_salience(EngineState0, [Id | OtherId],
 %% @doc Sets the salience value of all activations associated to rule 'Rule',
 %% returns the modified agenda
 set_rule_salience(EngineState0 =
-                    #eresye{agenda=#agenda{rule_list=RuleList0}}, Rule, NewSalience) ->
+                    #seresye{agenda=#agenda{rule_list=RuleList0}}, Rule, NewSalience) ->
     ActList = proplists:lookup_all(Rule, RuleList0),
     IdList = [Id || {_, _, _, Id} <- ActList],
     set_activation_salience(EngineState0, IdList,
@@ -173,14 +174,14 @@ set_rule_salience(EngineState0 =
 %%====================================================================
 %% Internal functions
 %%====================================================================
-execute_pending(EngineState0 = #eresye{agenda = Agenda0 = #agenda{pending_actions=[PA | Rest]}}) ->
-    EngineState1 = PA(EngineState0#eresye{agenda=Agenda0#agenda{pending_actions=Rest}}),
+execute_pending(EngineState0 = #seresye{agenda = Agenda0 = #agenda{pending_actions=[PA | Rest]}}) ->
+    EngineState1 = PA(EngineState0#seresye{agenda=Agenda0#agenda{pending_actions=Rest}}),
     execute_pending(EngineState1);
-execute_pending(EngineState0 = #eresye{agenda = #agenda{pending_actions=[]}}) ->
+execute_pending(EngineState0 = #seresye{agenda = #agenda{pending_actions=[]}}) ->
     EngineState0.
 
 after_activation_schedule(EngineState0 =
-                              #eresye{agenda=Agenda0 =
+                              #seresye{agenda=Agenda0 =
                                           #agenda{rule_list=RuleList0,
                                                   exec_state=ExecState0,
                                                   pending_actions=PA0,
@@ -199,13 +200,13 @@ after_activation_schedule(EngineState0 =
                                              end], RF0 + 1}
                 end
         end,
-    EngineState0#eresye{agenda=Agenda0#agenda{exec_state=ExecState1,
+    EngineState0#seresye{agenda=Agenda0#agenda{exec_state=ExecState1,
                                               rule_list=RuleList1,
                                               pending_actions=PA1,
                                               rules_fired=RF1}}.
 
 after_execution_schedule(EngineState0 =
-                             #eresye{agenda=Agenda0 =
+                             #seresye{agenda=Agenda0 =
                                          #agenda{rule_list=RuleList0,
                                                  pending_actions=PA0,
                                                  rules_fired=RF0}}) ->
@@ -218,7 +219,7 @@ after_execution_schedule(EngineState0 =
                                      exec(EngineState, RuleToExecute)
                              end], RF0 + 1}
     end,
-    EngineState0#eresye{agenda=Agenda0#agenda{exec_state=ExecState1,
+    EngineState0#seresye{agenda=Agenda0#agenda{exec_state=ExecState1,
                                               rule_list=RuleList1,
                                               pending_actions=PA1,
                                               rules_fired=RF1}}.
@@ -300,7 +301,7 @@ exec(EngineState0, R) ->
         case catch execute_rule(EngineState0, R) of
             {'EXIT', {function_clause, [{Mod, Fun, _} | _]}} -> EngineState0;
             {'EXIT', Reason} ->
-                erlang:throw({eresye, {rule_execution,
+                erlang:throw({seresye, {rule_execution,
                                        [R, Reason]}});
             EngineState1 -> EngineState1
         end,

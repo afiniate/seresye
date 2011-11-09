@@ -1,12 +1,13 @@
-%%%  ERESYE, an ERlang Expert SYstem Engine
+%%%  SERESYE, an Swarm oriented ERlang Expert SYstem Engine
 %%%
 %%% Copyright (c) 2005-2010, Francesca Gangemi, Corrado Santoro
+%%% Copyright (c) 2011 Afiniate, Inc.
 %%% All rights reserved.
 %%%
 %%% You may use this file under the terms of the BSD License. See the
 %%% license distributed with this project or
 %%% http://www.opensource.org/licenses/bsd-license.php
--module(eresye_tree_list).
+-module(seresye_tree_list).
 
 -export([child/3, children/2, get_beta/1, get_id/1,
          get_key/1, get_last_insert/1, get_node/2, get_parent/2,
