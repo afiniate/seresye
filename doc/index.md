@@ -11,13 +11,13 @@ directly from the Eresye project by Francesca Gangemi and Corrado
 Santoro. In the following article we will describe how to use the
 system.
 
-As it is widely known, a rule-based system is composed by a
-**knowledge base**, which stores a set of *facts* representing the
-'universe of discourse' of a given application, and a set of
-**production rules**, which are used to infer knowledge and/or reason
-about the knowledge. A rule is activated when one or more facts match
-the template(s) given in the rule declaration: in such a case, the
-body of the rule contains a code that is thus executed
+A rule-based system is composed of a **knowledge base**, which stores
+a set of *facts* representing the 'universe of discourse' of a given
+application, and a set of **production rules**, which are used to
+infer knowledge and/or reason about the knowledge. A rule is activated
+when one or more facts match the template(s) given in the rule
+declaration: in such a case, the body of the rule contains a code that
+is thus executed
 
 In SERESYE, *facts* are expressed by means of Erlang tuples or records,
 while rules are written using standard Erlang function clauses, whose
@@ -34,10 +34,10 @@ Hall, 2003.*
 To write an AI application with SERESYE the following steps have to be
 performed:
 
-1. Indentify your universe of discourse and determine the facts that
+1. Identify your universe of discourse and determine the facts that
    have to be used to represent such a world;
 
-2. Indentify the rules that you need and write them by using, e.g.
+2. Identify the rules that you need and write them by using, e.g.
    first-order-logic predicates or even natural language;
 
 3. Implement the system by writing your rules as Erlang function
@@ -430,98 +430,6 @@ and Anna's brothers, we can use the following function call:
     7> seresye:query_kb(relatives, {brother, '_', fun (X) -> (X == alice) or (X == anna) end}).
     [{brother,bob,alice},{brother,mark,alice},{brother,caesar,anna}]
     8>
-
-Deriving new concepts by means of rules
----------------------------------------
-
-#### Concept: 'mother'
-
-The rule to derive the concept of mother is quite straightforward:
-
-    if X is female and X is Y's parent then X is Y's mother.
-
-From the point of view of SERESYE, since knowledge is stored in the
-*knowledge base* of the engine, the rule above is translated into the
-following one: *<u>if the facts *{female, X}* and *{parent, X, Y}* are
-**asserted** in the knowledge base, then we assert the fact *{mother,
-X, Y}*.</u>*
-
-The rule *mother* can be thus written as follows:
-
-
-    %%
-    %% if (X is female) and (X is Y's parent) then (X is Y's mother)
-    %%
-    mother(Engine, {female, X}, {parent, X, Y}) ->
-      seresye:assert(Engine, {mother, X, Y}).
-
-#### Concept: 'father'
-
-This concept can be easily derived by means of the following rule:
-
-    %%
-    %% if (X is male) and (X is Y's parent) then (X is Y's father)
-    %%
-    father(Engine, {male, X}, {parent, X, Y}) ->
-      seresye:assert(Engine, {father, X, Y}).
-
-
-#### Concept: 'sister'
-
-This concept can be expressed by the following rule:
-
-    if Y and Z have the same parent and Z is female, then Z is the Y's
-    sister.
-
-The SERESYE rule used to map this concept is:
-
-    %%
-    %% if (Y and Z have the same parent X) and (Z is female)
-    %%    then (Z is Y's sister)
-    %%
-    sister(Engine, {parent, X, Y}, {parent, X, Z}, {female, Z}) when Y =/= Z ->
-      seresye:assert(Engine, {sister, Z, Y}).
-
-Please note the guard, which is needed to ensure that when Y and Z are
-bound to the same value, the rule is not activated (indeed this is possible
-since the same fact can match both the first and second
-'parent' pattern).
-
-#### Concept: 'brother'
-
- Given the previous one, this concept is now quite simple to
-implement:
-
-    %%
-    %% if (Y and Z have the same parent X) and (Z is male)
-    %%    then (Z is Y's brother)
-    %%
-    brother(Engine, {parent, X, Y}, {parent, X, Z}, {male, Z}) when Y =/= Z ->
-      seresye:assert(Engine, {brother, Z, Y}).
-
-
-#### Concepts: 'grandmother' and 'grandfather'
-
-The former concept can be expressed by means of the rule:
-
-    if X is Y's mother and Y is Z's parent, then X is Z's grandmother.
-
-The latter concept is now obvious. Both can be implemented using the
-following SERESYE rules:
-
-    %%
-    %% if (X is Y's mother) and (Y is Z's parent)
-    %%    then (X is Z's grandmother)
-    %%
-    grandmother(Engine, {mother, X, Y}, {parent, Y, Z}) ->
-      seresye:assert(Engine, {grandmother, X, Z}).
-
-    %%
-    %% if (X is Y's father) and (Y is Z's parent)
-    %%    then (X is Z's grandfather)
-    %%
-    grandfather(Engine, {father, X, Y}, {parent, Y, Z}) ->
-      seresye:assert(Engine, {grandfather, X, Z}).
 
 
 Conclusions
