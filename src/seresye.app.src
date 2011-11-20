@@ -4,8 +4,8 @@
  [{description, "SERESYE means Swarm oriented ERlang Expert SYstem Engine. It is a library "
    "to write expert systems and rule processing engines using the Erlang "
    "programming language"},
-  {vsn, "0.0.2"},
+  {vsn, "0.0.3"},
   {modules, []},
   {registered, []},
   {applications, [kernel, stdlib, erlware_commons]},
-  {mod, {eresye_app, []}}]}.
+  {mod, {seresye_app, []}}]}.
