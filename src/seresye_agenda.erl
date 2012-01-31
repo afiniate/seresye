@@ -310,5 +310,8 @@ exec(EngineState0, R) ->
 
 %% Fun = {Module, Function} or
 %% Fun = fun (...)
-execute_rule(EngineState, {Fun, Args, _, _}) ->
+execute_rule(EngineState, {{M,F}, Args, X1, X2}) ->
+    L = length(Args) + 1,
+    execute_rule(EngineState, {fun M:F/L, Args, X1, X2});
+execute_rule(EngineState, {Fun, Args, _, _}) when is_function(Fun) ->
     apply(Fun, [EngineState | Args]).
