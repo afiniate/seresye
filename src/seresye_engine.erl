@@ -250,16 +250,16 @@ get_records([_ | Tail], Acc) ->
 
 get_record_fields([], Acc) -> lists:reverse(Acc);
 get_record_fields([{record_field, _,
-                    {atom, _, FieldName}, {atom, _, DefaultValue}}
+                    {atom, _, FieldName}, {Type, _, DefaultValue}}
                    | Tail],
                   Acc) ->
-    NewAcc = [{FieldName, DefaultValue} | Acc],
+    NewAcc = [{FieldName, {Type, DefaultValue}} | Acc],
     get_record_fields(Tail, NewAcc);
 get_record_fields([{record_field, _,
                     {atom, _, FieldName}}
                    | Tail],
                   Acc) ->
-    NewAcc = [{FieldName} | Acc],
+    NewAcc = [{FieldName, {atom, undefined}} | Acc],
     get_record_fields(Tail, NewAcc).
 
 
@@ -403,10 +403,8 @@ get_record_def(Name, [_ | Rest]) ->
     get_record_def(Name, Rest).
 
 make_record_default([], Acc) -> lists:reverse(Acc);
-make_record_default([{_} | Tail], Acc) ->
-    make_record_default(Tail, [{var, 0, '_'} | Acc]);
-make_record_default([{_, Value} | Tail], Acc) ->
-    make_record_default(Tail, [{atom, 0, Value} | Acc]).
+make_record_default([{_,_} | Tail], Acc) ->
+    make_record_default(Tail, [{var, 0, '_'} | Acc]).
 
 make_record_pattern([], Pattern, _RecordDefinition) ->
     Pattern;
