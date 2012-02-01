@@ -250,6 +250,12 @@ get_records([_ | Tail], Acc) ->
 
 get_record_fields([], Acc) -> lists:reverse(Acc);
 get_record_fields([{record_field, _,
+                    {atom, _, FieldName}, {nil, _}}
+                   | Tail],
+                  Acc) ->
+    NewAcc = [{FieldName, {nil, []}} | Acc],
+    get_record_fields(Tail, NewAcc);
+get_record_fields([{record_field, _,
                     {atom, _, FieldName}, {Type, _, DefaultValue}}
                    | Tail],
                   Acc) ->
