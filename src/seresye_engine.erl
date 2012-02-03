@@ -375,6 +375,10 @@ extract_parameters([{record, _, RecordName, Condition}
                           | make_record_pattern(Condition, RecordDefaults,
                                                 RecordDefinition)]},
     extract_parameters(Tail, RecordList, [Pattern | Acc]);
+extract_parameters([{tuple, L, Elements}| Tail], RecordList, Acc) ->
+    Pattern = {tuple, L, 
+               extract_parameters(Elements, RecordList, [])},
+    extract_parameters(Tail, RecordList, [Pattern | Acc]);
 extract_parameters([Condition | Tail], RecordList, Acc) ->
     extract_parameters(Tail, RecordList, [remove_line_numbers(Condition) | Acc]).
 
