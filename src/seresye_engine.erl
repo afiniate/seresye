@@ -33,7 +33,7 @@
 %% External functions
 %%====================================================================
 new() ->
-    new(undefined).
+    new([]).
 
 new(ClientState) ->
     seresye_agenda:new(#seresye{kb=[], alfa=[],
