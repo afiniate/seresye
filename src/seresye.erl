@@ -76,7 +76,7 @@ get_kb(Name) ->
     gen_server:call(Name, get_kb).
 
 query_kb(Name, Pattern) ->
-    gen_server:call(Name, Pattern).
+    gen_server:call(Name, {query_kb, Pattern}).
 
 
 %%%===================================================================
@@ -183,10 +183,10 @@ handle_call(get_kb, _From, State0) ->
                 {error, {Type, Reason}}
         end,
     {reply, Reply, State0};
-handle_call(query_kb, _From, State0) ->
+handle_call({query_kb, Pattern}, _From, State0) ->
     Reply =
         try
-            seresye_engine:query_kb(State0)
+            seresye_engine:query_kb(State0, Pattern)
         catch
             Type:Reason ->
                 {error, {Type, Reason}}
