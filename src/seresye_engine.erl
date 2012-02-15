@@ -593,37 +593,8 @@ is_present(Cond, [{C1, Tab, _Alfa_fun} | Other_cond]) ->
         false -> is_present(Cond, Other_cond)
     end.
 
-replace_variables_with_atoms({cons, Line, Element, Rest}) ->
-    {cons, Line, replace_variables_with_atoms(Element),
-     replace_variables_with_atoms(Rest)};
-replace_variables_with_atoms({tuple, Line, Elements}) ->
-    {tuple, Line, [replace_variables_with_atoms(El) || El <- Elements]};
-replace_variables_with_atoms({var, Line, Var}) ->
-    {atom, Line, Var};
-replace_variables_with_atoms(Else) ->
-    Else.
-
-
 same_cond(Cond, Cond) -> true;
-same_cond(Cond1, Cond2) ->
-    C2Data = replace_variables_with_atoms(Cond2),
-    M1 = [{match,1,
-           Cond1, C2Data}],
-    ?LOG("Same Cond = ~p, ~p~n", [Cond1, Cond2]),
-    %% This should throw badmatch when the match fails
-    C2 = eval([C2Data]),
-    case eval(M1) of
-        C2 ->
-            C1Data = replace_variables_with_atoms(Cond1),
-            C1 = eval([C1Data]),
-            M2 = [{match,1,
-                   Cond2, C1Data}],
-            case eval(M2) of
-                C1 -> true;
-                _ -> false
-            end;
-        _ -> false
-    end.
+same_cond(_Cond1, _Cond2) -> false.
 
 eval(Expr) ->
     ?LOG("FUN = ~p~n", [String]),
