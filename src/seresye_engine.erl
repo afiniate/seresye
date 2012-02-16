@@ -25,6 +25,7 @@
 %%====================================================================
 
 -export([new/0, new/1,
+         set_hooks/2, get_fired_rule/1,
          add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1,
          get_rules_fired/1, get_client_state/1, set_client_state/2,
          query_kb/2, remove_rule/2, retract/2]).
@@ -40,6 +41,9 @@ new(ClientState) ->
                               join=seresye_tree_list:new(),
                               pending_actions=[],
                               client_state=ClientState}).
+
+set_hooks(EngineState, Hooks) when is_list(Hooks) ->
+    EngineState#seresye{ hooks = Hooks }.
 
 set_client_state(EngineState, NewState) ->
     EngineState#seresye{client_state=NewState}.
@@ -129,6 +133,9 @@ add_rule(EngineState0, {Module, Fun}, ClauseID, Salience) ->
 
 remove_rule(EngineState0, Rule) ->
     execute_pending(remove_prod(seresye_agenda:delete_rule(EngineState0, Rule), Rule)).
+
+get_fired_rule(#seresye{ fired_rule = Rule }) ->
+    Rule.
 
 get_rules_fired(EngineState) ->
     seresye_agenda:get_rules_fired(EngineState).
