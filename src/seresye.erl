@@ -15,6 +15,7 @@
 -export([start/0, start/1, start/2, stop/1, get_engine/1,
          add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1,
          get_rules_fired/1, get_client_state/1,
+         set_hooks/2, get_fired_rule/1,
          set_client_state/2, query_kb/2, remove_rule/2, retract/2]).
 
 %% gen_server callbacks
@@ -32,6 +33,9 @@ start(Name) ->
 
 start(Name, ClientState) ->
     seresye_sup:start_engine(Name, ClientState).
+
+set_hooks(Name, Hooks) when is_list(Hooks) ->
+    gen_server:cast(Name, {set_hooks, Hooks}).
 
 set_client_state(Name, NewState) ->
     gen_server:cast(Name, {set_client_state, NewState}).
@@ -71,6 +75,9 @@ remove_rule(Name, Rule) ->
 
 get_rules_fired(Name) ->
     gen_server:call(Name, get_rules_fired).
+
+get_fired_rule(Name) ->
+    gen_server:call(Name, get_fired_rule).    
 
 get_kb(Name) ->
     gen_server:call(Name, get_kb).
@@ -172,6 +179,15 @@ handle_call(get_rules_fired, _From, State0) ->
                 {error, {Type, Reason}}
         end,
     {reply, Reply, State0};
+handle_call(get_fired_rule, _From, State0) ->
+    Reply =
+        try
+            seresye_engine:get_fired_rule(State0)
+        catch
+            Type:Reason ->
+                {error, {Type, Reason}}
+        end,
+    {reply, Reply, State0};
 handle_call(get_engine, _From, State0) ->
     {reply, State0, State0};
 handle_call(get_kb, _From, State0) ->
@@ -192,6 +208,9 @@ handle_call({query_kb, Pattern}, _From, State0) ->
                 {error, {Type, Reason}}
         end,
     {reply, Reply, State0}.
+
+handle_cast({set_hooks, Hooks}, State) ->
+    {noreply, seresye_engine:set_hooks(State, Hooks)};
 
 handle_cast({set_client_state, CS}, State) ->
     {noreply, seresye_engine:set_client_state(State, CS)}.
