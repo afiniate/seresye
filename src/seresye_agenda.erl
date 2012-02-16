@@ -314,4 +314,18 @@ execute_rule(EngineState, {{M,F}, Args, X1, X2}) ->
     L = length(Args) + 1,
     execute_rule(EngineState, {fun M:F/L, Args, X1, X2});
 execute_rule(EngineState, {Fun, Args, _, _}) when is_function(Fun) ->
-    apply(Fun, [EngineState | Args]).
+    case proplists:get_value(before_rule, EngineState#seresye.hooks) of
+        BF when is_function(BF) ->
+            BF(EngineState, Fun, Args);
+        _ ->
+            ignore
+    end,
+    Result = apply(Fun, [EngineState#seresye { fired_rule = {Fun, Args} } | Args]),
+    case proplists:get_value(after_rule, EngineState#seresye.hooks) of
+        AF when is_function(AF) ->
+            AF(Result, Fun, Args);
+        _ ->
+            ignore
+    end,
+    Result#seresye{ fired_rule = undefined }.
+
