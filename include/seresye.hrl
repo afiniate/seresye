@@ -3,3 +3,4 @@
 %% nicer to write them in a when clause and let the transform do its
 %% work.
 -compile({parse_transform, seresye_autoneg}).
+-compile({parse_transform, seresye_transform}).
