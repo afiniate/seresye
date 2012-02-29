@@ -43,8 +43,9 @@ set_client_state(Name, NewState) ->
 get_client_state(Name) ->
     gen_server:call(Name, get_client_state).
 
-stop (EngineName) ->
-  gen_server:call(EngineName, {stop}).
+stop(EngineName) ->
+    (catch gen_server:call(EngineName, stop)),
+    ok.
 
 get_engine(EngineName) ->
     gen_server:call(EngineName, get_engine).
@@ -53,12 +54,12 @@ get_engine(EngineName) ->
 %% It also checks if the fact verifies any condition,
 %% if this is the case the fact is also inserted in the alpha-memory
 assert(Name, Facts) ->
-    gen_server:call(Name, {assert, Facts}).
+    gen_server:call(Name, {assert, Facts}, infinity).
 
 %% @doc removes a 'fact' in the Knowledge Base and if something occurs
 %% Condition is also deleted from the corresponding alpha-memory
 retract(Name, Facts) ->
-    gen_server:call(Name, {retract, Facts}).
+    gen_server:call(Name, {retract, Facts}, infinity).
 
 add_rules(Name, RuleList)
   when is_list(RuleList) orelse is_atom(RuleList) ->
