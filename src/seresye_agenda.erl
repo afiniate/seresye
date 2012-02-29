@@ -300,6 +300,7 @@ exec(EngineState0, R) ->
     EngineState2 =
         case catch execute_rule(EngineState0, R) of
             {'EXIT', {function_clause, [{Mod, Fun, _} | _]}} -> EngineState0;
+            {'EXIT', {function_clause, [{Mod, Fun, _, _Location} | _]}} -> EngineState0;
             {'EXIT', Reason} ->
                 erlang:throw({seresye, {rule_execution,
                                        [R, Reason]}});
