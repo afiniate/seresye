@@ -24,7 +24,7 @@
 %% External exports
 %%====================================================================
 
--export([new/0, new/1,
+-export([new/0, new/1, serialize/1, restore/1,
          set_hooks/2, get_fired_rule/1,
          add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1,
          get_rules_fired/1, get_client_state/1, set_client_state/2,
@@ -50,6 +50,58 @@ set_client_state(EngineState, NewState) ->
 
 get_client_state(#seresye{client_state=State}) ->
     State.
+
+restore(#seresye{ alfa = Alfa0, join = Join0 } = Engine) ->
+    TabCache = ets:new(tab_cache, []),
+    Alfa = [ {Cond, restore_tab(TabCache, Tab), Alfa_fun}
+             || {Cond, Tab, Alfa_fun} <- Alfa0 ],
+    Join = [ {case Key of
+                  {Tab,V} when element(1,Tab) == ets_table ->
+                      {restore_tab(TabCache, Tab), V};
+                  _ ->
+                      Key
+              end, Beta, Children, Parent, Pos} ||
+               {Key, Beta, Children, Parent, Pos} <- Join0 ],
+    ets:delete(TabCache),
+    Engine#seresye{ alfa = Alfa, join = Join }.
+
+serialize(#seresye{ alfa = Alfa0, join = Join0 } = Engine) ->
+    Alfa = [ {Cond, serialize_tab(Tab), Alfa_fun} 
+             || {Cond, Tab, Alfa_fun} <- Alfa0 ],
+    Join = [ {case Key of
+                  {Tab,V} when is_integer(Tab) ->
+                      {serialize_tab(Tab), V};
+                  _ ->
+                      Key
+              end, Beta, Children, Parent, Pos} ||
+               {Key, Beta, Children, Parent, Pos} <- Join0 ],
+    Engine#seresye{ alfa = Alfa, join = Join }.
+                 
+% where
+serialize_tab(Tab) ->
+    case ets:info(Tab) of
+        undefined ->
+            Tab;
+        Info ->
+            {ets_table, Tab, Info, ets:tab2list(Tab)}
+    end.
+restore_tab(Cache, {ets_table, Tab, Info, Content}) ->
+    case ets:lookup(Cache, Tab) of
+        [{Tab, NewTab}] ->
+            NewTab;
+        [] ->
+            NewTab = ets:new(proplists:get_value(name, Info),
+                             [ proplists:get_value(Opt, Info) ||
+                                 Opt <- [type,protection] ] ++
+                             [ {Opt, proplists:get_value(Opt, Info)} || 
+                                 Opt <- [keypos] ]),
+            ets:insert(NewTab, Content),
+            ets:insert(Cache, {Tab, NewTab}),
+            NewTab
+    end;
+restore_tab(_Cache, Tab) ->
+    Tab.
+
 
 %% @doc Insert a fact in the KB.
 %% It also checks if the fact verifies any condition,
