@@ -24,7 +24,7 @@
 %% External exports
 %%====================================================================
 
--export([new/0, new/1, serialize/1, restore/1,
+-export([new/0, new/1, serialize/1, restore/1, cleanup/1,
          set_hooks/2, get_fired_rule/1,
          add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1,
          get_rules_fired/1, get_client_state/1, set_client_state/2,
@@ -50,6 +50,10 @@ set_client_state(EngineState, NewState) ->
 
 get_client_state(#seresye{client_state=State}) ->
     State.
+
+cleanup(#seresye{ alfa = Alfa0, join = Join0 }) ->
+    [ begin (catch ets:delete(Tab)), Tab end || {_, Tab, _} <- Alfa0 ] ++
+    [ begin (catch ets:delete(Tab)), Tab end || {{Tab, _}, _, _, _, _} <- Join0, is_integer(Tab) ].         
 
 restore(#seresye{ alfa = Alfa0, join = Join0 } = Engine) ->
     TabCache = ets:new(tab_cache, []),
