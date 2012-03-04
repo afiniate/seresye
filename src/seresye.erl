@@ -16,7 +16,8 @@
          add_rules/2, add_rule/2, add_rule/3, assert/2, get_kb/1,
          get_rules_fired/1, get_client_state/1,
          set_hooks/2, get_fired_rule/1,
-         set_client_state/2, query_kb/2, remove_rule/2, retract/2]).
+         set_client_state/2, query_kb/2, serialize/1, 
+         remove_rule/2, retract/2]).
 
 %% gen_server callbacks
 -export([start_link/0, start_link/1, start_link/2, init/1, handle_call/3,
@@ -27,7 +28,7 @@
 %%====================================================================
 start() ->
     seresye_sup:start_engine().
-    
+
 start(Name) ->
     seresye_sup:start_engine(Name).
 
@@ -86,6 +87,8 @@ get_kb(Name) ->
 query_kb(Name, Pattern) ->
     gen_server:call(Name, {query_kb, Pattern}).
 
+serialize(Name) ->
+    gen_server:call(Name, serialize).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -94,7 +97,10 @@ start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
 start_link(Name) when is_atom(Name) ->
-    gen_server:start_link({local, Name}, ?MODULE, [], []).
+    gen_server:start_link({local, Name}, ?MODULE, [], []);
+
+start_link(ClientState) when not is_atom(ClientState) ->
+    gen_server:start_link(?MODULE, [ClientState], []).
 
 start_link(ClientState, Name) when is_atom(Name) ->
     gen_server:start_link({local, Name}, ?MODULE, [ClientState], []).
@@ -102,6 +108,8 @@ start_link(ClientState, Name) when is_atom(Name) ->
 
 init([]) ->
     {ok, seresye_engine:new()};
+init([Engine]) when element(1, Engine) == seresye ->
+    {ok, seresye_engine:restore(Engine)};
 init([ClientState]) ->
     {ok, seresye_engine:new(ClientState)}.
 
@@ -208,7 +216,11 @@ handle_call({query_kb, Pattern}, _From, State0) ->
             Type:Reason ->
                 {error, {Type, Reason}}
         end,
-    {reply, Reply, State0}.
+    {reply, Reply, State0};
+
+handle_call(serialize, _From, State) ->
+    Reply = seresye_engine:serialize(State),
+    {reply, Reply, State}.
 
 handle_cast({set_hooks, Hooks}, State) ->
     {noreply, seresye_engine:set_hooks(State, Hooks)};
