@@ -3,3 +3,4 @@ erl_crash.dump
 doc/_site
 deps
 ebin
+*.beam
