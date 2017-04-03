@@ -312,6 +312,8 @@ get_records([_ | Tail], Acc) ->
     get_records(Tail, Acc).
 
 get_record_fields([], Acc) -> lists:reverse(Acc);
+get_record_fields([{typed_record_field, RecordField, _T} | Tail], Acc) ->
+    get_record_fields([RecordField | Tail], Acc);
 get_record_fields([{record_field, _,
                     {atom, _, FieldName}, {nil, _}}
                    | Tail],
