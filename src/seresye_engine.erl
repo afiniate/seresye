@@ -449,22 +449,38 @@ extract_parameters([Condition | Tail], RecordList, Acc) ->
 
 %% @doc removing the line numbers make it easier to compare conditions
 %% for equality
+%% Note since OTP 24 (https://github.com/erlang/otp/pull/3006)
+%% abstract code contains location conforming to
+%% {Line :: integer(), Column :: integer()} format,
+%% therefore additional clauses have been added
 remove_line_numbers(Values) when is_list(Values) ->
     lists:map(fun remove_line_numbers/1, Values);
 remove_line_numbers({op, _, Op, T1, T2}) ->
     {op, 0, Op, remove_line_numbers(T1), remove_line_numbers(T2)};
+remove_line_numbers({Type, {L,C}}) % >= OTP24
+  when is_integer(L), is_integer(C), is_atom(Type) ->
+    remove_line_numbers({Type, L});
 remove_line_numbers({Type, L})
-    when is_integer(L), is_atom(Type) ->
+  when is_integer(L), is_atom(Type) ->
     {Type, 0};
 remove_line_numbers({string, _, String}) ->
     {string, 0, String};
+remove_line_numbers({Type, {L, C}, Values}) % >= OTP24
+  when is_integer(L), is_integer(C), is_atom(Type), is_list(Values) ->
+    remove_line_numbers({Type, L, Values});
 remove_line_numbers({Type, L, Values})
   when is_integer(L), is_atom(Type), is_list(Values) ->
     {Type, 0, lists:map(fun remove_line_numbers/1, Values)};
+remove_line_numbers({Type, {L, C}, Value}) % >= OTP24
+  when is_integer(L), is_integer(C), is_atom(Type) ->
+    remove_line_numbers({Type, L, Value});
 remove_line_numbers({Type, L, Value})
   when is_integer(L), is_atom(Type) ->
     {Type, 0, Value};
-remove_line_numbers({Type, L, C1, C2})
+remove_line_numbers({Type, {L, C}, C1, C2})
+  when is_integer(L), is_integer(C), is_atom(Type) ->
+    remove_line_numbers({Type, L, C1, C2});
+remove_line_numbers({Type, L, C1, C2}) % >= OTP24
   when is_integer(L), is_atom(Type) ->
     {Type, 0, remove_line_numbers(C1), remove_line_numbers(C2)}.
 
