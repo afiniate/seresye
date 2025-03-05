@@ -25,12 +25,12 @@ final_rule (Engine0, {is, started} = X)
     seresye_engine:assert (Engine1, {is, finished}).
 
 run_sieve() ->
-    Start = now(),
+    Start = erlang:system_time(),
     Engine1 = seresye_engine:assert (seresye_engine:new(),
                              [{X} || X <- lists:seq (2, 100)]),
     Engine2 = seresye_engine:add_rules(Engine1, ?MODULE),
     Engine3 = seresye_engine:assert (Engine2, {is, started}),
-    End = now(),
+    End = erlang:system_time(),
     ?assertMatch([{is,finished},
                   {97},
                   {89},
@@ -59,7 +59,7 @@ run_sieve() ->
                   {2}], seresye_engine:get_kb (Engine3)),
     R = seresye_engine:get_rules_fired (Engine3),
     io:format ("Rules fired: ~p~n", [R]),
-    D = timer:now_diff(End, Start),
+    D = End - Start,
     io:format ("Time = ~p sec, ~p rules/sec, rule execution time ~p msec~n",
                [D / 1000000.0,
                 R / (D / 1000000.0),
